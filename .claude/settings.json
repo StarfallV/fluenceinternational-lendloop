@@ -2,16 +2,22 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.local)",
-      "Read(./.env.*.local)",
-      "Read(./.env.n8n)",
-      "Read(./.secrets/**)",
-      "Edit(./.env)",
-      "Edit(./.env.local)",
-      "Edit(./.env.*.local)",
-      "Edit(./.env.n8n)",
-      "Edit(./.secrets/**)",
+      "Read(/.env)",
+      "Read(/.env.local)",
+      "Read(/.env.*.local)",
+      "Read(/.env.development)",
+      "Read(/.env.production)",
+      "Read(/.env.test)",
+      "Read(/.env.n8n)",
+      "Read(/.secrets/**)",
+      "Edit(/.env)",
+      "Edit(/.env.local)",
+      "Edit(/.env.*.local)",
+      "Edit(/.env.development)",
+      "Edit(/.env.production)",
+      "Edit(/.env.test)",
+      "Edit(/.env.n8n)",
+      "Edit(/.secrets/**)",
       "Bash(cat *.env*)",
       "Bash(cat *.secrets*)",
       "Bash(head *.env*)",
@@ -44,11 +50,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash|PowerShell|Monitor",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-secrets.mjs\"",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-secrets.mjs"],
             "timeout": 10
           }
         ]

@@ -74,6 +74,9 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
   export loop before the real workflows exist.
 - **Spawning:** scripts start Node entry points directly (for example the Convex CLI's JS entry),
   never `npx` without a shell, so they work on Windows.
+- **`scripts/env-names.ts`** (`npm run env:names -- <service>`): prints the names, never the values,
+  of a running service's environment variables. The secret guard blocks `printenv` through
+  `docker compose exec` (security.md §5), so this is how the container check below is done.
 - **Runbook:** `docs/runbooks/local-setup.md` covers:
   - prerequisites, the Clerk and Convex steps, setup, and verification;
   - testing with two browser profiles;
@@ -90,7 +93,7 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
 - [ ] Next.js doesn't load `.env.n8n`. Proven by a test, or a recorded check, that the signing
       secret is absent from the Next.js server environment.
 - [ ] Only the n8n container has the signing secrets in its environment. Checked by variable
-      **name** only, for every service (recorded).
+      **name** only, with `npm run env:names`, for every service (recorded).
 - [ ] n8n uses the encryption key from the key file: setup's hash check reports "match"
       (recorded). If n8n 2.47 ignores `N8N_ENCRYPTION_KEY_FILE`, the fallback in Known Constraints
       is applied and recorded instead.

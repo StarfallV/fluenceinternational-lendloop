@@ -86,21 +86,44 @@ they exist.
   for an instant, which is visible to local process listings. That is acceptable on a developer
   machine.
 - The Claude Code guardrails are best-effort, for agents, not a security boundary. They cover:
-  - **File tools:** deny rules for reading (`Read`, which Claude Code also applies to its other
-    file-reading tools) and for writing (`Edit`, which also covers `Write`) `.env`, `.env.local`,
-    `.env.*.local`, `.env.n8n` and `.secrets/`.
-  - **Shell commands:** a PreToolUse hook (`.claude/hooks/guard-secrets.mjs`) blocks any Bash or
-    PowerShell command that names a secret file: `.env`, `.env.<anything>` other than the
-    committed `*.example` templates, or anything under `.secrets`. It runs before Claude Code's
-    own read-only auto-approvals, so it also covers commands such as `diff` and `git`.
-    Expressions such as `process.env` don't name a file and stay allowed. Static deny rules for
-    the common readers (`cat`, `head`, `tail`, `less`, `Get-Content`, `type`) back it up if the
-    hook fails to run.
-  - **Convex env:** deny rules for `convex env list` and `convex env get`, through `npx` or the
-    CLI's Node entry point.
+  - **File tools:** deny rules, anchored to the project root, for reading (`Read`, which Claude
+    Code also applies to its other file-reading tools) and writing (`Edit`, which also covers
+    `Write`). They cover every env file Next.js loads (`.env`, `.env.local`, `.env.<mode>`,
+    `.env.<mode>.local`), plus `.env.n8n` and `.secrets/`.
+  - **Shell commands:** a PreToolUse hook (`.claude/hooks/guard-secrets.mjs`, with its matching
+    logic in `secret-names.mjs`) runs before every Bash, PowerShell and Monitor command. That
+    includes commands Claude Code would auto-approve, and subagents' commands. It is registered
+    in exec form, so it doesn't depend on a shell. It blocks:
+    - any command that names a secret file, in any path form or letter case: `.env`,
+      `.env.<anything>` except the committed `*.example` templates, or anything under
+      `.secrets`. Examples: `cat .env.local`, `diff .env.n8n.example .env.n8n`, `cat .ENV`,
+      `Get-Content -Path .\.secrets\n8n_encryption_key`.
+    - commands that print secrets without naming a file:
+      - `docker compose config` without `--no-env-resolution`;
+      - `printenv` or `env` through `docker exec` or `docker compose exec`, and `docker inspect`;
+      - recursive searches that ignore `.gitignore`: `grep -r`, `rg -uu`, `rg --no-ignore`,
+        `Get-ChildItem -Recurse | Select-String`, `findstr /s`;
+      - `convex env list` and `convex env get`.
 
-  They don't cover a program that opens the files itself, such as a script run with `node`, or a
-  file path assembled at run time. The rule in `CLAUDE.md` is what governs.
+    It allows:
+    - the `*.example` templates;
+    - expressions such as `process.env` or `$env:X`;
+    - `docker compose config --no-env-resolution`;
+    - plain `rg` and `git grep`, which respect `.gitignore`;
+    - non-recursive `grep`.
+
+    The test lists every case (`.claude/hooks/secret-names.test.mjs`). If the hook's input is
+    unreadable, it fails open with a warning. If its own matching fails, it denies.
+  - **Static deny rules** for the common readers (`cat`, `head`, `tail`, `less`, `source`,
+    `Get-Content`, `gc`, `type`), and for `convex env list` and `convex env get` through `npx` or
+    the CLI's Node entry point. They back up the hook if it fails to run.
+
+  The guardrails don't cover:
+  - a program that opens the files itself, such as a script run with `node`;
+  - a path assembled at run time, or matched by a wildcard (`cat .e*`);
+  - a shell started inside a container.
+
+  The rule in `CLAUDE.md` is what governs.
 
 ## 6. Residual risks
 
