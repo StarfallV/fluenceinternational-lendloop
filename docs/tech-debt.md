@@ -60,7 +60,8 @@ The first items record trade-offs accepted during planning. They feed the produc
 - **Module:** LOAN
 - **Description:** Convex re-runs a query only when the data it read changes, so a view that stays
   open across midnight would show yesterday's availability and overdue state until something
-  changes or the user navigates. **Planned resolution:** the hourly `clock` row that queries read
+  changes or the user navigates. **Planned resolution:** the `clock` row that queries read, which a
+  per-minute tick rewrites on each hour and date change
   ([architecture.md §6](architecture.md#6-loan-lifecycle-availability-and-time)), built in
   block 004. Mark this item resolved when it ships.
 - **Priority:** Low
@@ -68,16 +69,18 @@ The first items record trade-offs accepted during planning. They feed the produc
 
 ### TD-006: Narrow cases can still duplicate an email
 
-- **Source:** Planning baseline ([ADR-004](adr/ADR-004-hmac-request-signing.md), [ADR-005](adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md)); widened after planning review round 1
+- **Source:** Planning baseline ([ADR-004](adr/ADR-004-hmac-request-signing.md), [ADR-005](adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md)); widened after planning review rounds 1 and 2
 - **Module:** AUTO
-- **Description:** Delivery is at least once. A recipient can get an email twice in three narrow
+- **Description:** Delivery is at least once. A recipient can get an email twice in four narrow
   cases:
-  - n8n sends a notification but its `200` never reaches Convex;
-  - n8n crashes between sending a reminder and writing it back (the claim expires and a later run
-    sends again);
+  - n8n sends a notification, but its acknowledgement never reaches Convex;
+  - the execution timeout cancels a notification whose SMTP send then completes anyway, after n8n
+    has answered with an error, so Convex retries it;
+  - n8n sends a reminder, but the write-back never lands: n8n crashes, or the write-back fails
+    after its retries. The claim expires and a later run sends again;
   - a captured, validly signed loan event is replayed to n8n inside the 5-minute window.
 
-  Duplicate *records* are impossible in all three. Production should pass `eventId` (or the
+  Duplicate *records* are impossible in all four. Production should pass `eventId` (or the
   reminder key) to the email provider as an idempotency key, or deduplicate inside n8n with a
   check that runs after the send succeeds.
 - **Priority:** Low

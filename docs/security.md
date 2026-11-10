@@ -1,7 +1,7 @@
 # LendLoop — Security and Privacy
 
-**Status:** Baseline v1.1 (2026-11-10, revised after
-[planning review round 1](reviews/planning-baseline-review-1.md))
+**Status:** Baseline v1.2 (2026-11-10, revised after planning review
+[round 1](reviews/planning-baseline-review-1.md) and [round 2](reviews/planning-baseline-review-2.md))
 **Scope:** What we protect, from whom, with which controls, and which personal data goes where.
 The mechanisms are specified in [architecture.md](architecture.md). This document explains why
 they exist.
@@ -40,9 +40,10 @@ they exist.
 | Forged webhook or forged write-back | HMAC-SHA256 over the timestamp, method, path and raw body (newline-separated). One secret per direction. Constant-time comparison. Bare 401. | ADR-004 |
 | Replay | ±300 s timestamp window, plus idempotency keys on every write to Convex. Replays to n8n inside the window are a residual risk (§6). | ADR-004, ADR-005 |
 | Cross-endpoint replay | The signature covers the method and path | ADR-004 |
-| Oversized or malformed bodies | 64 KiB limit checked first; validated with Convex validators before any write. Each rejection is counted. | architecture §8 |
+| Oversized or malformed bodies | 64 KiB limit checked first; validated with Convex validators before any write | architecture §8 |
+| Junk traffic turned into writes | Rejections are counted at most 100 times per reason per day, and the response never depends on the count, so unauthenticated requests cause a bounded number of writes and can't turn a `401` into a `500` | architecture §4, §8 |
 | Personal data in error text | n8n sends error codes plus redacted, truncated messages. Convex redacts again before storing. Parties see only the status; admins see the redacted detail. | architecture §4, §8 |
-| Secrets committed or leaked | Secrets are only in env files and n8n credentials. `.env*` and `.secrets/` are gitignored. Compose reads `.env.n8n`, which Next.js never loads. The encryption key is passed as a file. The workflow exporter strips pinned data, and a CI check fails on anything secret-shaped. Claude Code deny rules (best-effort) cover reading env files and listing Convex env values. | §5 |
+| Secrets committed or leaked | Secrets are only in env files and n8n credentials. `.env*` and `.secrets/` are gitignored. Compose gives `.env.n8n` to the n8n container only, and Next.js never loads it. The encryption key is passed as a file. The workflow exporter strips pinned data, and a CI check fails on anything secret-shaped. Claude Code deny rules (best-effort) cover reading env files and listing Convex env values. | §5 |
 | The n8n editor exposed through the tunnel | An edge proxy forwards only `POST /webhook/lendloop/*`. The editor and test webhooks stay on localhost. | ADR-001, `compose.yml` |
 | HTML or header injection through user text in emails | Plain-text emails only. Single-line fields reject control characters. Length limits on all user text. React escapes all rendering. | BR-3, BR-16, BR-21 |
 | Spam and abuse | Rate limits on creating listings and requests, one open request per tool, field limits | SEC-6 |
@@ -73,7 +74,7 @@ they exist.
 | --- | --- | --- | --- |
 | `CONVEX_TO_N8N_SIGNING_SECRET` | `npm run setup` (32 random bytes) | Convex env, `.env.n8n` → n8n container env | Code, workflow JSON, logs, the Next.js process |
 | `N8N_TO_CONVEX_SIGNING_SECRET` | `npm run setup` | Convex env, `.env.n8n` → n8n container env | Code, workflow JSON, logs, the Next.js process |
-| n8n encryption key | `npm run setup` | `.secrets/n8n_encryption_key`, mounted as `N8N_ENCRYPTION_KEY_FILE` | Env variables (so `$env` can't read it), anywhere else |
+| n8n encryption key | `npm run setup` | `.secrets/n8n_encryption_key`, mounted as `N8N_ENCRYPTION_KEY_FILE` (support verified in block 007, with a recorded fallback) | Env variables (so `$env` can't read it), anywhere else |
 | `CLERK_SECRET_KEY` | Clerk dashboard | `.env.local` | Convex, n8n, logs |
 | SMTP credentials | n8n credential (encrypted with the key above) | n8n database | Workflow JSON |
 
@@ -83,7 +84,16 @@ they exist.
 - If the Convex CLI can't read values from stdin, `npm run setup` passes them as command arguments
   for an instant, which is visible to local process listings. That is acceptable on a developer
   machine.
-- Claude Code deny rules are a best-effort guardrail for agents, not a security boundary.
+- Claude Code deny rules are a best-effort guardrail for agents, not a security boundary. They
+  cover:
+  - the Read tool on `.env`, `.env.local`, `.env.*.local`, `.env.n8n` and `.secrets/`;
+  - common shell readers (`cat`, `head`, `tail`, `less`, `grep`, `source`; `Get-Content`, `gc`,
+    `cat`, `type`, `Select-String`) given any path containing `.env` or `.secrets`, in relative,
+    `.\` or absolute form;
+  - `convex env list` and `convex env get`, through `npx` or the CLI's Node entry point.
+
+  They can't cover every spelling, for example a script that opens the file. The rule in
+  `CLAUDE.md` is what governs.
 
 ## 6. Residual risks
 
@@ -92,6 +102,6 @@ they exist.
 | User profile changes in Clerk only sync on the next sign-in (TD-001) | Low impact locally | Clerk webhooks (signed, verified) |
 | Anyone can sign up and then see every listing and display name (TD-007) | A demo needs open sign-up | Invite-only or allowlisted sign-up, or address verification for a neighborhood |
 | A replay of a loan event to n8n inside the 5-minute window re-sends one email (TD-006) | Needs a captured, valid request; the effect is one duplicate email | Event-ID deduplication in n8n after the send, or idempotency keys at the email provider |
-| A duplicate email when n8n's reply is lost, or n8n crashes between send and write-back (TD-006) | At-least-once is standard, and the email is harmless | The same as above |
+| A duplicate email in the other narrow cases of TD-006: a lost acknowledgement, a timed-out send that completes anyway, or a reminder whose write-back never lands | At-least-once is standard, and the email is harmless | The same as above |
 | Quick-tunnel URLs are public and change on every restart | Only signed webhook paths are exposed; the URL is re-synced automatically | A real domain, TLS, and an IP allowlist or private networking |
 | Host sleep can skew the Docker VM clock beyond ±300 s, so signed calls are rejected | Rejections are counted and visible; the runbook gives the fix | Hosts that use NTP |

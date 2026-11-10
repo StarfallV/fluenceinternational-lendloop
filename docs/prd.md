@@ -1,7 +1,7 @@
 # LendLoop — Product Requirements
 
-**Status:** Baseline v1.1 (2026-11-10, revised after
-[planning review round 1](reviews/planning-baseline-review-1.md))
+**Status:** Baseline v1.2 (2026-11-10, revised after planning review
+[round 1](reviews/planning-baseline-review-1.md) and [round 2](reviews/planning-baseline-review-2.md))
 **Scope:** Everything LendLoop must do, the rules it enforces, and which delivery block delivers
 each requirement. Where the brief was silent, the gap is filled here and marked _(decision)_.
 
@@ -66,14 +66,14 @@ decisions (approve, decline, return); least privilege applies _(decision)_.
 | ADM-1 | An admin can remove any listing, with an optional reason. |
 | ADM-2 | An admin can view all loans, filtered by status. Long-overdue loans (BR-20) are flagged. |
 | ADM-3 | An admin can mark or unmark a user as a **Trusted Lender**. The users list shows each user's join date and number of listings, so people with the same display name can be told apart. |
-| ADM-4 | An admin can see automation health: failed webhook deliveries (with **Retry** and **Retry all**), recent n8n workflow errors, today's rejected integration calls, and when the reminder workflow last ran. The navigation flags anything that needs attention _(decision)_. |
+| ADM-4 | An admin can see automation health: failed webhook deliveries (with **Retry** and **Retry all**), recent n8n workflow errors, interrupted reminder runs, today's rejected integration calls, and when the reminder workflow last ran. The navigation flags anything that needs action: failed deliveries, recent errors, interrupted runs, or a reminder workflow that has stopped running _(decision)_. |
 
 ### 3.5 Automation
 
 | ID | Requirement |
 | --- | --- |
 | AUT-1 | **Request notification.** When a borrow request is created or changes status, Convex calls an n8n webhook. The workflow emails the relevant user (§5.4), using only the fields it needs. |
-| AUT-2 | **Overdue reminders.** A scheduled n8n workflow runs daily. It fetches overdue loans from a Convex HTTP endpoint, emails each borrower a reminder, and writes the reminder status back to Convex. |
+| AUT-2 | **Overdue reminders.** A scheduled n8n workflow fetches overdue loans from a Convex HTTP endpoint, emails each borrower a daily reminder, and writes the reminder status back to Convex. It runs every hour in the daytime, so a missed or interrupted run is made up the same day, and each borrower still gets at most one reminder per loan per day (BR-20) _(decision)_. |
 | AUT-3 | **Automation activity (bonus).** Each loan shows its recent automation activity, for example "Lender notified · 3 minutes ago" or "Overdue reminder sent · 2 days ago". |
 
 ## 4. Security, privacy and reliability requirements
@@ -104,7 +104,7 @@ decisions (approve, decline, return); least privilege applies _(decision)_.
 | ID | Rule |
 | --- | --- |
 | BR-4 | A user cannot request their own tool, or a deleted or removed tool. |
-| BR-5 | **Date range:** dates are calendar dates in the app timezone (ADR-008). The start date must be from today to today + 90 days, inclusive. The end date must be on or after the start date, so a loan lasts 1 to 30 days, inclusive. |
+| BR-5 | **Date range:** dates are calendar dates in the app timezone (ADR-008). The start date must be from today to today + 90 days, inclusive. The end date must be on or after the start date, and a loan lasts at most 30 days. Both dates count, so a loan lasts 1 to 30 days. |
 | BR-6 | A borrower can have at most one **open** request per tool. Open means pending, or approved and not yet returned. |
 | BR-7 | A request whose dates overlap an approved, unreturned loan on the same tool is rejected. Pending requests from different borrowers may overlap; the lender chooses. |
 | BR-8 | **Approve:** lender only, pending only, and only if the start date is today or later. Approval re-checks overlap inside the same transaction. Other pending requests that overlap are **declined automatically** with the reason "dates taken". |

@@ -1,6 +1,6 @@
 # ADR-006 — Failure visibility: dead letters, an error workflow, and a heartbeat
 
-**Status:** Accepted
+**Status:** Accepted (revised 2026-11-10 after planning review rounds 1 and 2)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -34,26 +34,30 @@ An n8n error workflow covers only the second, because it cannot fire when n8n it
 ## Decision
 
 All three failure points are recorded in Convex and shown on the admin **Automation health**
-panel, with a navigation badge when anything needs attention:
+panel. A navigation badge lights when something needs action: dead letters, workflow errors in
+the last 24 h, abandoned reminder claims, or a stale heartbeat. Rejected inbound calls are shown,
+but don't light the badge, because one stray request isn't an incident.
 
 | Failure point | Mechanism |
 | --- | --- |
-| Convex → n8n delivery | Outbox retries with backoff, then a dead letter. Admins can retry one dead letter or all of them. A stale tunnel URL is labelled `TUNNEL_STALE`. |
+| Convex → n8n delivery | Outbox retries with backoff, then a dead letter. Only the positive acknowledgement counts as delivered. Admins can retry one dead letter or all of them. A stale tunnel URL is labelled `TUNNEL_STALE`. |
 | Workflow step | The n8n error workflow records the failure through `/n8n/errors`, continuing even if that call fails, and then always emails `ADMIN_ALERT_EMAIL` |
-| n8n not running | The reminder workflow posts a run summary (heartbeat) each run, including on days with no overdue loans. A catch-up run fires when n8n starts. No run received within 26 h raises a warning. A fresh setup shows "no run yet". |
-| Bad signatures or clock skew | Each rejected inbound call is counted per day, with the last reason, on the health panel |
+| Interrupted reminder run | Its claims' leases expire unresolved. Health shows them as abandoned until the next hourly run takes them over, and that run's summary counts them as `reclaimed`. |
+| n8n not running | The reminder workflow runs hourly in the daytime and posts a run summary (heartbeat) each run, including runs with nothing to remind. A catch-up run fires when n8n starts. No run summary received within 26 h raises a warning. A fresh setup shows "no run yet". |
+| Bad signatures or clock skew | Each rejected inbound call is counted per day and reason, up to 100 each, with the last reason, on the health panel |
 
 Node-level retries (`Retry On Fail`) handle transient failures **inside the reminder workflow**.
 The loan-event send has none, because Convex owns those retries (ADR-005). Per-item error branches
 keep one bad reminder from failing the whole run.
 
-Time-based flags ("stale", "errors in the last 24 h") are computed from the hourly `clock` row
-(ADR-008), so an open admin page updates without a reload.
+Time-based flags ("stale", "errors in the last 24 h", "abandoned") are computed from the `clock`
+row (ADR-008), which changes every hour and at midnight, so an open admin page updates without a
+reload.
 
-**On n8n 2.x an error workflow runs only when it is published.** Setup publishes all three
-workflows by their committed IDs, and `check:workflows` verifies that both working workflows link
-to the handler. Runs started from the editor don't trigger error workflows, so scripted runs use
-the signed `run-reminders` webhook instead.
+**On n8n 2.x an error workflow runs only when it is published.** Setup publishes every workflow in
+`n8n/workflows/` by its committed ID, and `check:workflows` verifies that each one except the
+handler links to it. Runs started from the editor don't trigger error workflows, so scripted runs
+use the signed `run-reminders` webhook instead.
 
 ## Rationale
 
@@ -63,7 +67,7 @@ same reactive UI show health that shows everything else.
 
 ## Consequences
 
-- The reminder workflow must post its run summary even when every reminder fails, and on days
+- The reminder workflow must post its run summary even when every reminder fails, and on runs
   with nothing to remind.
 - The error workflow uses only error metadata: workflow slug, node, error code, and a redacted,
   truncated message. Never the failed execution's payload. Convex redacts again before storing.
