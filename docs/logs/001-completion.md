@@ -18,17 +18,22 @@
   - ESLint flat config (Next.js rules and `typescript-eslint`), with `any` and non-null
     assertions as errors and zero warnings allowed;
   - Prettier, with the Tailwind plugin;
-  - Vitest, with a `node` project and an edge-runtime `convex` project.
+  - Vitest, with a `node` project and an edge-runtime `convex` project. A first test proves the
+    `convex` project runs in the edge runtime.
 - **`npm run check:ids`:** finds duplicate TD, ADR and BUG identifiers and block numbers, plus
-  ADRs titled with another number. It has fixtures and tests.
+  ADRs titled with another number. It fails closed: a missing `docs/` or `tech-debt.md`, or no
+  identifiers at all, exits 1. It has fixtures and tests.
 - **CI:** on every pushed branch and pull request (`npm ci`, typecheck, lint, format:check, test,
   build, check:ids), with Node from `.nvmrc` (24). Also a PR template.
-- **Project files:** `package.json` at `0.0.0` with `engines` set to node ≥ 22; `.env.example`;
-  the README's Development section.
-- **Secret guard, hardened (TD-009):**
-  - the matching logic lives in its own module, with 45 command cases and entry-point tests;
-  - the hook is registered in exec form for Bash, PowerShell and Monitor;
-  - it blocks the commands that print secrets without naming a file;
+- **Project files:** `package.json` at `0.0.0` with `engines` set to
+  `^22.13.0 || ^24.0.0 || >=26.0.0`; `.env.example`; the README's Development section.
+- **Secret guard, hardened (TD-009, then review round 1):**
+  - the matching logic lives in its own module, with 75 command cases and entry-point tests;
+  - the hook is registered in exec form for Bash, PowerShell and Monitor, and a test checks that
+    registration;
+  - it blocks the commands that print secrets without naming a file, including the close
+    variants review round 1 found, reads of n8n's `~/.n8n/config`, and decrypted credential
+    exports;
   - names match case-insensitively;
   - the file deny rules are anchored to the project root.
 - **Process gaps (TD-012):** fix blocks, the baseline PR's missing CI, and bug reports as
@@ -37,14 +42,14 @@
 ## Acceptance criteria
 | Criterion | Result | Evidence |
 | --- | --- | --- |
-| On a clean clone, `npm ci`, typecheck, lint, format:check, test and build succeed on Windows and in CI | PASS | Manual (Windows): `e4621dd` cloned into a scratch directory, Windows 10, Node 24.20.0. All seven CI steps succeeded. CI (Ubuntu): [run 42889364207](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42889364207) on `e4621dd`, success. |
+| On a clean clone, `npm ci`, typecheck, lint, format:check, test and build succeed on Windows and in CI | PASS | Manual (Windows): `e4621dd` cloned into a scratch directory, Windows 10, Node 24.20.0. All seven CI steps succeeded. CI (Ubuntu): [run 42889364207](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42889364207) on `e4621dd`, success. After the review round 1 fixes: `e0c9dea` cloned the same way, all seven steps succeeded; CI [run 42896760027](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42896760027) on `e0c9dea`, success. |
 | `/` shows the name and tagline, and lays out correctly at 360 px and 1280 px | PASS | Manual: the production build served locally, captured with headless Chrome at 1280 × 800 and in a 360 px-wide iframe. A direct 360 px capture is cropped, because the headless window has a minimum width. The name, tagline and description fit, with 16 px gutters and no horizontal overflow. Screenshots: [360 px](assets/001-landing-360.png), [1280 px](assets/001-landing-1280.png). |
-| `check:ids` passes on the repository; a test proves it fails on duplicated TD, ADR or block numbers | PASS | `npm run check:ids` reports "no duplicates (12 TD, 9 ADR, 0 BUG, 12 block)". Tests: `npm run check:ids › exits 1 and names the duplicate for duplicate-td / duplicate-adr / duplicate-bug / duplicate-block`; `checkIds › reports … with every location`; `checkIds › passes on this repository's docs`; `checkIds › reports an ADR file whose title names another number`. |
-| CI runs on this block's pushed branch and is green | PASS | Runs on `a858391` and `e4621dd` both succeeded (latest: run 42889364207). |
+| `check:ids` passes on the repository; a test proves it fails on duplicated TD, ADR or block numbers | PASS | `npm run check:ids` reports "no duplicates (14 TD, 9 ADR, 0 BUG, 12 block)". Tests: `npm run check:ids › exits 1 and names the duplicate for duplicate-td / duplicate-adr / duplicate-bug / duplicate-block`; `… › exits 1 and names an ADR file titled with another number`; `… › exits 1 when the docs define no identifiers`; `… › exits 1 when run from a directory without docs/`; `checkIds › reports … with every location`; `checkIds › passes on this repository's docs`; `checkIds › reports an ADR file whose title names another number`; `checkIds › reports a docs directory that doesn't exist / without tech-debt.md / that defines no identifiers`. |
+| CI runs on this block's pushed branch and is green | PASS | Runs on `a858391`, `e4621dd` and `e0c9dea` all succeeded (latest: run 42896760027). |
 | `strict` is on; ESLint forbids `any` and passes with zero warnings | PASS | `tsconfig.json` has `"strict": true`. `eslint.config.mjs` sets `@typescript-eslint/no-explicit-any` to error, and lint runs with `--max-warnings=0`. Manual: a probe file using `any` and `!` failed with 2 errors (the probe was then removed). |
-| `git ls-files --eol` shows no CRLF in the index | PASS | All 101 tracked files are `i/lf` (checked at `e4621dd`). |
+| `git ls-files --eol` shows no CRLF in the index | PASS | All 111 text files are `i/lf`; the other 2 are the PNG screenshots (`i/-text`). Checked at `e0c9dea`. |
 | `package.json` is at version `0.0.0` | PASS | `package.json` |
-| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (26 cases), `findSecretAccess › allows %s` (18), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`. Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. |
+| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (48 cases), `findSecretAccess › allows %s` (27), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s`. Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
 | TD-009 and TD-012 are marked resolved | PASS | `docs/tech-debt.md`, resolution lines on both items |
 
 ## Deviations from spec
@@ -52,6 +57,24 @@
   for it when the planning baseline closed. The spec was updated first, in `5335d46`.
 - **Vitest config:** it is `vitest.config.mts`, not `.ts`, because Vite 8 warns about ESM syntax
   in a config loaded as CommonJS.
+- **TD-009's names-only helper wasn't built here.** TD-009 planned "a names-only helper script for
+  block 007's container-environment check". It moved into block 007's spec as
+  `scripts/env-names.ts` (`f6e2369`), because the container and its environment arrive there. The
+  TD-009 resolution line says so.
+- **A session-norms rule outside the spec's Outputs:** `e8b95e5` added the rule about compound
+  commands and the static deny rules to `.claude/rules/session-norms.md`, after a deny during this
+  block showed the gap.
+- **Commits that don't pass their own scripts** (review round 1, issue 5): `658ceec` declared the
+  `test` and `check:ids` scripts before Vitest, tsx and `scripts/check-ids.ts` arrived in
+  `ab2f9fe`, and `format:check` before Prettier arrived in `bcdb8c5`. So `npm test` and
+  `check:ids` fail at `658ceec`, `bcdb8c5` and `a8e16a1`, and `format:check` fails at `658ceec`,
+  against "every commit … passes its tests". Also, `ab2f9fe` is typed `test:` although it adds
+  the check:ids tool and its dependencies. Pushed history isn't rebased (commit-conventions
+  rule), so this stays on record. From block 002 on, each script lands in the commit that adds
+  its tool.
+- **Node floor** (review round 1, issue 4): the spec said Node ≥ 22. The installed toolchain
+  needs `^22.13.0 || ^24.0.0 || >=26.0.0`, so the spec was corrected first, then `engines`, the
+  README and `CLAUDE.md` (`6dd276b`).
 
 ## Decisions made
 - **TypeScript 6.0.3**, pinned exactly. create-next-app 16.4.6 installs `typescript ^5`, but the
@@ -86,12 +109,33 @@
   - the deny JSON format.
 
   The exec form's `${CLAUDE_PROJECT_DIR}` substitution was then confirmed live.
+- **Dependencies** (review round 1, issue 9, which found reasons missing):
+  - `@base-ui/react`, `class-variance-authority`, `cn` and `tw-animate-css`: what shadcn/ui's
+    `base-nova` style needs. Base UI provides the primitives, cva the component variants, `cn`
+    the class merging, and `tw-animate-css` the animation utilities its components use.
+  - `lucide-react`: the icon library set in `components.json`. Nothing uses it yet; the
+    components added from block 003 on do, and shadcn's generated code imports it.
+  - `shadcn`: the app needs only its build-time `shadcn/tailwind.css`, so it moved to
+    devDependencies after review round 1 (`826782d`). That also takes its CLI's advisories out of
+    the production tree (TD-014).
+  - `vite`: a required peer dependency of Vitest 5.
+  - `@edge-runtime/vm`: Vitest's `edge-runtime` environment, which the `convex` project uses.
+  - `tsx`: runs the TypeScript scripts in `scripts/` on every OS (coding standards).
+- **Missing `command` field:** the hook fails open with a warning, like unreadable input, because
+  it means Claude Code's protocol changed. Monitor's WebSocket form (`ws`, no `command`) is allowed
+  without a warning, since it runs no shell command.
+- **check:ids fails closed:** a missing `docs/` or `tech-debt.md`, or no identifiers at all, is a
+  problem, so a run from the wrong directory can't pass. Each duplicate fixture got a
+  `tech-debt.md`, so it fails for one reason only.
 
 ## ADRs created
 None.
 
 ## Tech debt recorded
-None. TD-009 and TD-012 were resolved.
+- TD-013 — The secret guard doesn't know the n8n key file's path inside the container (block 007)
+- TD-014 — The shadcn CLI's dependencies have open advisories
+
+TD-009 and TD-012 were resolved.
 
 ## Verification items resolved
 - **TypeScript** (architecture.md §16, block 001): `typescript-eslint` 8.72.2 requires
@@ -101,7 +145,21 @@ None. TD-009 and TD-012 were resolved.
   coverage, as listed under "Decisions made".
 
 ## Review items addressed
-Pending review.
+[Round 1](../reviews/001-review-1.md): PASS WITH NOTES. Every note was fixed in this block, so
+round 2 reviews the fixes.
+
+| Finding | Outcome |
+| --- | --- |
+| 1. Close variants of the blocked commands get through | Fixed (`453a24d`): all 10 variants, plus siblings (`rgrep`, `/proc/<pid>/environ`, quoted `sh -c`, `--entrypoint=`, abbreviated grep options, `gci -r`, `-Depth`), each with a test row; false-positive rows for `rg -U`, `ConvertFrom-Json -Depth`, `git diff --no-index` and n8n's own commands. security.md §5 updated. |
+| 2. Reading secrets inside a container | Fixed (`453a24d`): reads or copies of `~/.n8n/config` and `export:credentials --decrypted` are blocked; §5 lists files read inside a container as uncovered. The mounted key file's path is recorded as TD-013, which block 007's spec now carries. |
+| 3. Monitor coverage assumed | Fixed (`453a24d`): a missing `command` warns and exits 1 (except Monitor's `ws` form); `settings.test.mjs` checks the registration; a live Monitor probe was denied (Acceptance criteria). |
+| 4. The Node floor is understated | Fixed (`6dd276b`): `^22.13.0 \|\| ^24.0.0 \|\| >=26.0.0`. The reviewer's 22.12 was raised to 22.13, because `eslint-visitor-keys` 5 needs it. Spec, README and `CLAUDE.md` updated. |
+| 5. Commits that fail their own scripts; a `test:` commit that adds a tool | Recorded under Deviations; history isn't rebased. |
+| 6. The PR template's relative link | Fixed (`104c21f`): absolute `blob/main` URL. |
+| 7. Where a fix-block spec gets committed | Fixed (`104c21f`): create-blocks, run-block and report-bug say the spec, bug report and index rows stay uncommitted until run-block's start commit. |
+| 8. check:ids fails open; untested paths | Fixed (`63f4bf2`): it fails closed, with CLI cases for a mistitled ADR, no identifiers and a run outside the repository; a first `convex`-project test proves the edge runtime. |
+| 9. Documentation and convention nits | Fixed: ADR-009's bookkeeping summary (`104c21f`); security.md status line and the templates note (`453a24d`); dependency reasons (Decisions); the template comment in `next.config.ts` (`826782d`). |
+| Undocumented deviations: the names-only helper; the session-norms rule | Recorded under Deviations. |
 
 ## Notes for the next block
 - **Before block 002, the developer:**
@@ -115,8 +173,14 @@ Pending review.
 - **The landing page lives in `src/app/(public)/`.** The "Sign in to lend or borrow" button
   (PUB-3) belongs in that page or its header.
 - **Commit messages:** when one names a secret file or a command shape the guard blocks, commit
-  with `git commit -F <file>`. The static deny rules also match whole compound commands, so split
-  a command that pipes into `tail` and then stages `.env.example` (session norms).
+  with `git commit -F <file>`, and write that file with the Write tool: a heredoc puts the text
+  back into the command, and the guard blocks it. The static deny rules also match whole compound
+  commands, so split a command that pipes into `tail` and then stages `.env.example` (session
+  norms).
+- **Scripts land with their tools:** add each npm script in the commit that adds its tool, so
+  every commit passes its own scripts (review round 1, issue 5).
+- **TD-013 is block 007's:** add the key file's in-container path to the guard once
+  `compose.yml` fixes it.
 - **Skill text:** this session loaded the run-block skill text cached at session start, which
   predated the round-2 and round-3 process changes. I followed the repository's current
   `SKILL.md`. In a new session the cached copy is current.
