@@ -6,14 +6,14 @@
 
 ## Goal
 Show automation where people need it: activity on each loan for its parties (the bonus), and an
-Automation health panel for admins with retry and stale-run warnings.
+Automation health panel for admins with retries, stale-run warnings and rejection counts.
 
 ## Dependencies
 - Depends on: 009
 - Depended on by: 011
 
 ## Requirements
-AUT-3, ADM-4, REL-2 (visibility), UX-3.
+AUT-3, ADM-4, REL-2 (visibility), SEC-5 (no emails or raw errors for parties), UX-3.
 
 ## Inputs
 - `automation:activityForLoan` and `automation:health` from block 006.
@@ -22,21 +22,32 @@ AUT-3, ADM-4, REL-2 (visibility), UX-3.
 ## Outputs
 - **Loan activity:** loan cards in My requests, Incoming and the admin Loans tab show an activity
   list, for example "Lender notified · 3 min ago", "Overdue reminder sent · 2 days ago",
-  "Reminder failed". Relative times update live, and no email address is shown.
+  "Reminder failed".
+  - Parties see statuses only; admins also see the redacted error detail.
+  - Relative times update live.
 - **Admin Automation tab:**
   - delivery counts by status;
-  - a dead-letter table (event type, tool, attempts, last error code, time) with Retry;
+  - a dead-letter table (event type, tool, attempts, last error code, time) with **Retry** and
+    **Retry all**;
   - recent workflow errors;
-  - the last reminder run (time and counts), with a stale warning;
-  - a navigation badge when something needs attention (dead letters, errors in the last 24 h, a
-    stale heartbeat).
+  - today's rejected integration calls, with the last reason and a hint about clock drift;
+  - the last reminder run (time and counts), with three states: **ok**, **stale**, **no run yet**;
+  - a "tunnel stale" hint when the latest failures are `TUNNEL_STALE`;
+  - a navigation badge when something needs attention: dead letters, errors in the last 24 h, a
+    stale heartbeat, or rejections today.
 
 ## Acceptance Criteria
 - [ ] A loan's activity is visible only to its borrower, its lender and admins. Anyone else gets
-      `FORBIDDEN` or `NOT_FOUND` (test).
-- [ ] Activity results contain no email addresses (test on the result shape).
-- [ ] Retry from the UI moves a dead letter back to pending, and it is delivered once n8n is
+      `NOT_FOUND` (test).
+- [ ] Activity returned to parties contains no error messages and no email addresses. Activity for
+      admins contains only redacted messages (tests on the result shapes).
+- [ ] Retry and Retry all move dead letters back to pending, and they are delivered once n8n is
       reachable (manual check, recorded).
-- [ ] Dead letters and a stale heartbeat raise the admin badge, and clearing them removes it
-      (manual check, plus the block 006 query tests).
-- [ ] Relative times update without a reload (manual check).
+- [ ] Dead letters, a stale heartbeat and rejections each raise the admin badge, and clearing them
+      removes it. "No run yet" shows on a fresh setup (manual check, plus the block 006 query
+      tests).
+- [ ] Relative times update without a reload, and the stale flag appears on an open page when the
+      clock ticks past 26 h (manual check with a test clock, recorded).
+
+## Known Constraints
+None. The data and the rules come from block 006.

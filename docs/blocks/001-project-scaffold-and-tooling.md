@@ -9,8 +9,8 @@ Stand up the Next.js app and the tooling every later block relies on: strict Typ
 format, tests, and CI, plus the LendLoop landing shell. No Convex or Clerk yet.
 
 ## Dependencies
-- Depends on: None
-- Depended on by: 002 (and transitively every block)
+- Depends on: None. Branches from `docs/planning-baseline` while PRs are deferred.
+- Depended on by: 002
 
 ## Requirements
 PUB-1 (shell), QA-1.
@@ -38,11 +38,11 @@ PUB-1 (shell), QA-1.
   Plus a `test` script.
 - **`scripts/check-ids.ts`** (`npm run check:ids`): fails when a TD, BUG or ADR identifier, or a
   block number, is defined twice across `docs/`.
-- **CI:** `.github/workflows/ci.yml` runs on pull requests and on pushes to `main`:
+- **CI:** `.github/workflows/ci.yml` runs on **every pushed branch** and on pull requests:
   `npm ci`, typecheck, lint, format:check, test, build, check:ids. The Node version comes from
   `.nvmrc`.
-- **PR template:** `.github/pull_request_template.md` (summary, block, acceptance checklist,
-  review verdict, completion log link).
+- **PR template:** `.github/pull_request_template.md` (summary, block, acceptance checklist, link
+  to the review record, completion log link).
 - **Node version:** `.nvmrc` and `package.json` `engines` (Node ≥ 22, which Convex requires).
 - **Landing page shell:** the LendLoop name and tagline in a minimal header/footer layout.
 - **`.env.example`:** skeleton listing the Next.js variables (filled in during 002).
@@ -55,7 +55,7 @@ PUB-1 (shell), QA-1.
       correctly at 360 px and 1280 px wide (manual check, recorded).
 - [ ] `npm run check:ids` passes on the repo. A Vitest test proves it fails on fixtures with a
       duplicated TD, ADR or block number.
-- [ ] CI runs on this block's PR and is green.
+- [ ] CI runs on this block's pushed branch and is green.
 - [ ] `strict` is on in `tsconfig.json`; ESLint forbids `any` and passes with zero warnings.
 - [ ] `git ls-files --eol` shows no CRLF line endings in the index.
 

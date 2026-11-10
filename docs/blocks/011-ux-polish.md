@@ -38,3 +38,6 @@ UX-1, UX-2, UX-3.
       it back when they close (manual check, recorded).
 - [ ] Lighthouse accessibility scores 95 or more on the landing, browse and requests pages
       (scores recorded).
+
+## Known Constraints
+None. Polish only: no new behavior, and no change to Convex function contracts.
