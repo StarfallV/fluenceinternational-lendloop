@@ -9,9 +9,8 @@ Stand up the Next.js app and the tooling every later block relies on: strict Typ
 format, tests, and CI, plus the LendLoop landing shell. No Convex or Clerk yet.
 
 ## Dependencies
-- Depends on: None. Branches from `docs/planning-baseline` while PRs are deferred, and starts only
-  once that branch's latest review (`docs/reviews/planning-baseline-review-*.md`) is PASS or PASS
-  WITH NOTES.
+- Depends on: the planning baseline, which must be **Closed** (its row in `docs/blocks/README.md`).
+  Branches from `docs/planning-baseline` while PRs are deferred.
 - Depended on by: 002
 
 ## Requirements
@@ -46,6 +45,10 @@ PUB-1 (shell), QA-1.
 - **PR template:** `.github/pull_request_template.md` (summary, block, acceptance checklist, link
   to the review record, completion log link).
 - **Node version:** `.nvmrc` and `package.json` `engines` (Node ≥ 22, which Convex requires).
+- **Version:** `package.json` starts at `"version": "0.0.0"`. create-next-app writes `0.1.0`, which
+  would make the first release (`npm version 0.1.0` in block 002) fail with "Version not changed".
+- **Secret guard test:** a Vitest test for `.claude/hooks/guard-secrets.mjs` (`secretNamesIn`),
+  with the allowed and blocked cases listed in security.md §5.
 - **Landing page shell:** the LendLoop name and tagline in a minimal header/footer layout.
 - **`.env.example`:** skeleton listing the Next.js variables (filled in during 002).
 - **README:** "Development" section with prerequisites and the npm scripts.
@@ -60,6 +63,7 @@ PUB-1 (shell), QA-1.
 - [ ] CI runs on this block's pushed branch and is green.
 - [ ] `strict` is on in `tsconfig.json`; ESLint forbids `any` and passes with zero warnings.
 - [ ] `git ls-files --eol` shows no CRLF line endings in the index.
+- [ ] `package.json` is at version `0.0.0`, and the secret-guard test passes (Vitest).
 
 ## Known Constraints
 - TypeScript 7.0 is the latest release, but `typescript-eslint` 8.72 requires `<6.1.0`. Verify,

@@ -27,7 +27,8 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
   - `n8n` (2.47.x):
     - `N8N_ENCRYPTION_KEY_FILE` from `.secrets/n8n_encryption_key`, once its support is verified
       (Known Constraints);
-    - timezone set to `APP_TIMEZONE`;
+    - timezone from `GENERIC_TIMEZONE` and `TZ` in `.env.n8n`, which setup writes from
+      `APP_TIMEZONE`;
     - env access in nodes, and `NODE_FUNCTION_ALLOW_BUILTIN=crypto`;
     - saves no successful and no manual executions, and keeps errors for 168 h;
     - diagnostics off;
@@ -42,6 +43,8 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
   each variable lives.
 - **`scripts/setup.ts`** (`npm run setup`), idempotent:
   - creates `.env.n8n` and the key file if missing (the key file without a trailing newline);
+  - writes `GENERIC_TIMEZONE` and `TZ` into `.env.n8n` with the value of `APP_TIMEZONE`, and sets
+    the same `APP_TIMEZONE` in the Convex env, so n8n's schedule and Convex's calendar agree;
   - refuses to create a new encryption key when an n8n volume already exists, and explains the
     recovery;
   - sets the Convex env without echoing values (stdin if the CLI supports it);
@@ -93,6 +96,8 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
       is applied and recorded instead.
 - [ ] With the stack down, `npm run dev` still starts: `predev` prints one warning line and exits
       0 (manual check, recorded).
+- [ ] With a non-default `APP_TIMEZONE`, n8n reports that timezone, and the Convex env has the
+      same value (manual check, recorded).
 - [ ] Through the tunnel URL (curl results recorded):
   - `POST /webhook/lendloop/<path>` reaches n8n;
   - `GET /`, the editor paths and `/webhook-test/*` return `404` with `X-LendLoop-Edge: denied`.

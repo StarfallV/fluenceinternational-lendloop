@@ -40,24 +40,25 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
 - **Emission:** every loan transition from blocks 004 and 005 enqueues exactly one event through
   `transition()`. That includes auto-declines, expiries, and cancellations from listing deletion
   or removal. `transition()` also maintains `nextReminderOn`: set on approval, cleared when the
-  loan leaves `approved`.
+  loan leaves `approved`. A one-off internal mutation backfills `nextReminderOn` for loans approved
+  before this block (blocks 004–005); it is run once after deploying.
 - **Delivery in `convex/automation.ts`** (architecture.md §7.3):
-  - `claim`: pending, due, no live lease, `attempts < 6`, oldest open event of its loan;
-    increments attempts; returns a lease token. A superseded row becomes `skipped`, and a blocked
-    row's `nextAttemptAt` moves behind the event ahead of it.
+  - `claim`: pending, due, no live lease, `attempts < 6`, no other event of its loan in flight
+    and no earlier one pending; increments attempts; returns a lease token. A superseded row
+    becomes `skipped`, and a blocked row's `nextAttemptAt` moves behind the event that blocks it.
   - `deliver` (action): aborts its fetch after 30 s; only the positive acknowledgement counts as
     delivered; always records an outcome, mapping exceptions to `CONFIG` or `INTERNAL`.
-  - `recordOutcome`: ignores stale tokens. When a row becomes final, the loan's next pending event
-    is scheduled at once.
-  - `sweep` (cron, every 5 minutes, bounded batches): schedules due rows, and dead-letters crashed
-    final attempts.
+  - `recordOutcome`: ignores stale tokens. When a row becomes final, the loan's oldest pending
+    event gets `nextAttemptAt` = now and is scheduled.
+  - `sweep` (cron, every 5 minutes, bounded batches): schedules due rows, dead-letters crashed
+    final attempts, and runs the reminder-claim sweep (`abandoned`, `missed`; architecture.md §8).
   - Admin `retryDelivery` and `retryAllDeliveries`: audited; superseded rows become `skipped`, and
     revived rows are scheduled at once.
 - **Queries:**
   - admin `health`: counts by status, dead letters, recent errors under any workflow slug (through
-    `by_kind_received`), today's rejections per reason, abandoned reminder claims, the last
-    reminder run with its counts, and a heartbeat state of `ok`, `stale` or `none`, computed from
-    the clock;
+    `by_kind_received`), today's rejections per reason, abandoned reminder claims, reminders
+    missed in the last 24 h, the last reminder run with its counts, and a heartbeat state of `ok`,
+    `stale` or `none`, computed from the clock;
   - `activityForLoan`: the loan's parties see statuses only; admins also see the redacted
     detail; anyone else gets `NOT_FOUND`.
 - **`convex/http.ts`:**
@@ -66,8 +67,9 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
   - rejection reasons go to the logs and, at most 100 times per reason per day, to the daily
     `integrationStats` row. The response is decided first and never depends on that write;
   - handlers call internal functions only.
-- **Smoke-test helper:** `dev:makeLoanOverdue` (guarded), used by block 009. It moves a loan's
-  dates into the past, and its `nextReminderOn` with them.
+- **Smoke-test helper:** `dev:createOverdueLoan` (guarded), used by block 009. It creates a fresh
+  approved loan between two demo users, with dates in the past and `nextReminderOn` today, so
+  every smoke run starts from its own overdue loan.
 - **Environment:** `N8N_LOAN_EVENTS_URL`, both signing secrets and `APP_URL`, read through
   `lib/env.ts`.
 
@@ -84,7 +86,8 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
       table-driven test covers requested, approved, declined (manual and automatic), cancelled
       (every reason), expired and returned. Outbox rows hold no email or name. Approval sets
       `nextReminderOn` to the day after the end date, and every transition out of `approved`
-      clears it.
+      clears it. The backfill sets it for approved loans that lack it, and a second run changes
+      nothing.
 - [ ] **Payload:** contains exactly the fields in architecture.md §7.2, with `loanRole` and no loan
       ID (test on the built object).
 - [ ] **Delivery outcomes** with a stubbed `fetch` and fake timers (tests):
@@ -101,12 +104,12 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
   - a row that isn't due, is leased, isn't `pending`, or already has 6 attempts cannot be
     claimed;
   - two concurrent claims → only one gets a token;
-  - a later event of a loan waits while an earlier one is `pending`, and its `nextAttemptAt`
-    moves to the earlier event's;
-  - once the earlier event is delivered or dead-lettered, the later one is scheduled at once,
-    without waiting for the sweep;
-  - a revived dead letter becomes `skipped` at claim time when a newer event of its loan has been
-    delivered, including one that was still in flight when the dead letter was revived.
+  - a later event of a loan waits while an earlier one is `pending`, or while any other event of
+    the loan is in flight, and its `nextAttemptAt` moves behind the event that blocks it;
+  - once the event ahead becomes final, the next one is **delivered** without waiting for the
+    sweep (the test runs scheduled functions to completion and asserts the delivery);
+  - a revived dead letter waits while a newer event of its loan is in flight, and becomes
+    `skipped` once that event is delivered.
 - [ ] **Crash paths** (tests):
   - `recordOutcome` with a stale token changes nothing;
   - a `deliver` that dies without recording leaves an expired lease. The sweep re-schedules the
@@ -127,21 +130,25 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
 - [ ] **Reminder claims** (tests, fake time):
   - `/n8n/overdue-loans` returns only loans due a reminder (approved, `nextReminderOn` today or
     earlier, fewer than 7 sent), with exactly the listed fields, and marks each `sending` with a
-    20-minute lease;
+    30-minute lease;
+  - with 250 finished loans (no `nextReminderOn`) and one due loan, the due loan is returned;
   - a call from a **different** `runId` within the lease returns none of them;
-  - a repeated call with the **same** `runId` returns the same loans;
-  - once the lease has expired, `health` lists the claims as abandoned. Another run then gets
-    them: each record's `abandoned` count goes up, and the response counts them in `reclaimed`,
-    also when that call is repeated;
+  - a repeated call with the **same** `runId` returns the same loans and the same `reclaimed`;
+  - after the lease expires, the sweep marks the claims `abandoned` and `health` lists them.
+    A later run takes them over, and `reclaimed` counts them for that run only;
+  - **an interrupted 20:00 run:** a claim still open after midnight becomes `missed`, `health`
+    lists it for 24 h, and the next day's first run claims the loan again;
   - a loan with a `sent` reminder today, or with 7 reminders sent, is never returned. A `failed`
     one is returned to the next run.
 - [ ] **Reminder write-backs** (tests):
   - a key that doesn't match the body's `loanId`, has a future date, or has no record → `400`;
   - `sent` twice → one record; `remindersSent` + 1 exactly once; `nextReminderOn` moves to the
     day after the reminder's date and never backwards, and the 7th reminder clears it;
-  - `sent` from a run that has lost its claim is still accepted;
-  - `failed` from the run holding the claim → `failed`. `failed` from any other run → ignored
-    (`stale`), and the live claim is untouched;
+  - `sent` for a loan returned after it was claimed leaves `nextReminderOn` cleared;
+  - `sent` is accepted from a run that has lost its claim, and on `abandoned` and `missed`
+    records;
+  - `failed` from the run holding the claim → `failed`. `failed` from any other run, or on any
+    other state, is ignored, and a live claim is untouched;
   - `sent` is never downgraded.
 - [ ] **Run and error records** (tests): `/n8n/runs` (by `runId`) and `/n8n/errors` (by
       `errorId`, with or without an `executionId`) are idempotent. An unknown `workflow` value is
