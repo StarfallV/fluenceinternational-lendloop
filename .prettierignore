@@ -1,0 +1,11 @@
+# Prettier also skips everything in .gitignore.
+
+# Markdown is hand-formatted: wrapped prose and unpadded tables.
+*.md
+
+# Generated files
+package-lock.json
+convex/_generated/
+
+# Exported n8n workflows are written in a stable form by `npm run n8n:export` (block 007).
+n8n/workflows/
