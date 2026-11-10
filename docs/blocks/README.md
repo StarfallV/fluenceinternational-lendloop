@@ -9,13 +9,18 @@ spec (Planned) → /run-block (In progress) → completion log (In review) → /
   → review record in docs/reviews/ → /close-block (Closed) → PR merged into main, later
 ```
 
-Branches stack while PRs are deferred ([ADR-009 amendment](../adr/ADR-009-repository-workflow.md)):
-the planning baseline is at the bottom, and each block branches from the one it depends on. A
-Closed branch never changes again; fixes go forward. Whether a block has merged lives in git:
-branches are kept after merging, and a merged branch is an ancestor of `origin/main`.
+Blocks run one at a time, in number order, on stacked branches while PRs are deferred
+([ADR-009 amendment](../adr/ADR-009-repository-workflow.md)). The planning baseline is at the
+bottom, and each block branches from the one before it. A Closed branch never changes again;
+fixes go into the block in progress. Whether a branch has merged lives in git: branches are kept
+after merging, and a merged branch is an ancestor of `origin/main`.
+
+The first row is the planning baseline itself. It has a status like a block, and block 001 starts
+only once it is Closed.
 
 | Block | Module | Title | Depends on | Status | Release |
 | --- | --- | --- | --- | --- | --- |
+| — | — | Planning baseline: requirements, architecture, ADRs, specs and process ([reviews](../reviews/README.md)) | — | In review | |
 | [001](001-project-scaffold-and-tooling.md) | PLT | Project scaffold and tooling | — | Planned | |
 | [002](002-identity-and-roles.md) | AUTH | Identity and roles | 001 | Planned | v0.1.0 |
 | [003](003-tool-listings.md) | TOOL | Tool listings | 002 | Planned | |

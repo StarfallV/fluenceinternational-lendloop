@@ -1,6 +1,6 @@
 # ADR-009 — Repository workflow: delivery blocks on a single trunk, SemVer tags
 
-**Status:** Accepted (amended 2026-11-10, and the amendment revised after planning review round 2)
+**Status:** Accepted (amended 2026-11-10, and the amendment revised after planning review rounds 2 and 3)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -58,8 +58,8 @@ not exist here.
 
 ## Consequences
 
-- `main` only changes through merged PRs. The exceptions are the root commit, and an identifier
-  claim when parallel branches are cut from `main` (see the amendment).
+- `main` only changes through merged PRs. The exceptions are the root commit, and identifier
+  claims once work continues from `main` with parallel branches (see the amendment).
 - If the project ever gains deployed environments, re-adding `develop` and a release guard is
   additive.
 
@@ -68,15 +68,21 @@ not exist here.
 The developer prefers to open PRs later rather than block on them ("We can PR later no?").
 Planning review round 1 also showed that a review verdict needs a durable place to live.
 
-- **Stacked branches.** A block starts when every block it depends on is **Closed** (review passed,
-  docs final) and its base branch's latest review passed. For block 001, the base is the planning
-  baseline, so block 001 waits for the baseline's review. A block branches from `main` when
-  everything it depends on has merged, and otherwise from the newest dependency branch. The
-  planning baseline is the bottom of the stack.
-- **Closed branches are frozen.** Nothing is merged into a Closed branch, and nothing is merged
-  forward. A problem found after a block closed is fixed forward, on top of the stack: in the block
-  in progress, or on a `fix/BUG-nnn` branch cut from the newest Closed branch. So a fix never forces
-  a re-review of the branches above it.
+- **One rule for bases.** Blocks run one at a time, in number order. Block NNN branches from
+  block NNN−1's branch, and block 001 from the planning baseline. Once that branch has merged, the
+  block branches from `main` instead. The dependency graph is linear, so every dependency is in
+  the base.
+- **A block starts when its base is Closed:**
+  - the latest review passed;
+  - its notes are handled, either fixed through another round or recorded as tech debt;
+  - the closing bookkeeping is committed.
+
+  The planning baseline has a status row in `docs/blocks/README.md` like a block, and block 001
+  waits for it to be Closed.
+- **Closed branches are frozen.** No commit lands on a Closed branch, and nothing is merged
+  forward. A problem found later is fixed in the block in progress, as `fix:` commits that its
+  review covers. After the last planned block, a fix becomes a block of its own. A fix therefore
+  never forces a re-review of another branch.
 - **Deferred PRs.** PRs are opened later, one at a time in stack order, starting with the planning
   baseline. Each is opened against `main` once the PR below it has merged, so its diff shows only
   its own commits, and is merged with a merge commit.
@@ -94,7 +100,8 @@ Planning review round 1 also showed that a review verdict needs a durable place 
   other change, including any other docs change, needs a new review round. On the planning
   baseline, the docs are the deliverable, so this matters most there.
 - **CI on every pushed branch**, not only on PRs, so each block is checked before its PR exists.
+  The planning baseline predates CI, so its PR merges without it.
 - **Releases** are tagged when the milestone block merges into `main`. GitHub Releases are created
   only for `v1.0.0`; earlier milestones are tags and CHANGELOG entries.
-- **Identifier claims** are committed to the branch the parallel branches will be cut from, before
-  cutting them, so every branch that uses a claim contains it.
+- **Identifier claims** aren't needed while blocks run one at a time. Once work continues from
+  `main` with parallel branches, claims are committed to `main` before the branches are cut.

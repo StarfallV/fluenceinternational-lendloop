@@ -33,15 +33,15 @@ when:
 
 1. **Document it** with `/report-bug`. It creates `docs/bugs/BUG-nnn-<slug>.md` with the
    severity, symptom, root cause and fix approach.
-2. **Fix it forward,** on top of the stack, never on a Closed branch
-   ([commit-conventions](commit-conventions.md#branches)):
-   - while a block is in progress, as separate `fix: … (BUG-nnn)` commits on that block's branch,
-     which the block's review covers;
-   - with no block in progress, on `fix/BUG-nnn-<slug>`, cut from the newest Closed branch (or
-     from `origin/main` once everything has merged), and reviewed and closed like a block.
+2. **Fix it in the block in progress,** as separate `fix: … (BUG-nnn)` commits that the block's
+   review covers. Never on a Closed branch ([commit-conventions](commit-conventions.md#branches)).
+   - With no block in progress, the fix goes into the next block.
+   - After the last planned block (012), a fix becomes a block of its own (013, …), with a spec
+     whose Branch line is `fix/BUG-nnn-<slug>`, run with `/run-block` like any other.
 
    Add a test that fails before the fix and passes after.
-3. **Log it** in `docs/logs/BUG-nnn-completion.md`: root cause, fix, tests, decisions.
+3. **Log it** in the completion log of the block that carries the fix (root cause, fix, tests),
+   and set the bug report's status to Fixed.
 4. If the bug reveals a deeper issue, add a tech-debt item that cites `BUG-nnn`.
 
 | Severity | Meaning |
@@ -55,6 +55,7 @@ when:
 
 - `TD-`, `BUG-` and `ADR-` numbers are sequential across the whole project. Never restart, reuse
   or renumber them.
-- With one branch open, take the next number. With branches running in parallel, claim numbers in
-  [docs/id-registry.md](../../docs/id-registry.md) first.
+- Blocks run one at a time, so take the next number. Claims in
+  [docs/id-registry.md](../../docs/id-registry.md) are needed only once work continues from `main`
+  with parallel branches.
 - `npm run check:ids` fails CI on any duplicate.

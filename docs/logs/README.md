@@ -1,7 +1,8 @@
 # Completion logs
 
 There is one log per delivery block, `NNN-completion.md`, committed as the block's last commit
-before review. Bug fixes get `BUG-nnn-completion.md`. Each log lists:
+before review. A bug fix is logged in the completion log of the block that carries it. Each log
+lists:
 - what was built;
 - the evidence for every acceptance criterion;
 - deviations from the spec;

@@ -8,18 +8,24 @@ LendLoop is built in numbered delivery blocks ([docs/blocks/](../../docs/blocks/
 | Step | Skill | Result |
 | --- | --- | --- |
 | Plan | `/create-blocks` | Spec in `docs/blocks/`, with `Status: Planned` |
-| Execute | `/run-block NNN` | Branch (from `main` or the dependency branch), commits, and a completion log committed together with `Status: In review` |
+| Execute | `/run-block NNN` | Branch (from the previous block's branch, or `main`), commits, and a completion log committed together with `Status: In review` |
 | Review | `/review-block NNN` | A fresh, read-only `block-reviewer` agent reports PASS, PASS WITH NOTES or NEEDS WORK. The main session records the report in `docs/reviews/NNN-review-<round>.md`, with the reviewed commit. |
 | Close | `/close-block NNN` | Review notes handled (any code fix means a new review round), closing commit, `Status: Closed` |
 | Merge | When the developer opens PRs | One PR per branch in stack order, merge commits, a tag at each milestone |
 
-- **One block at a time,** unless identifiers were claimed for parallel work
-  ([docs/id-registry.md](../../docs/id-registry.md)).
-- **A block starts** when everything it depends on is **Closed** (review passed, docs final), and
-  the latest review of its base branch passed. Block 001's base is the planning baseline, so block
-  001 waits for the baseline's review. Merged or not doesn't matter, because branches stack.
-- **Closed branches are frozen.** Nothing is merged into a Closed branch. A problem found later is
-  fixed forward, on top of the stack (tech-debt-and-bugs rule).
+- **One block at a time, in number order.** Block NNN branches from block NNN−1's branch, and
+  block 001 from the planning baseline. Once that branch has merged, the block branches from
+  `main` instead. The dependency graph is linear, so every dependency is in the base.
+- **A block starts** when its base is **Closed**. Closed means:
+  - the latest review passed;
+  - its notes are handled, either fixed through another review round or recorded as tech debt;
+  - the closing bookkeeping is committed.
+
+  The planning baseline counts as a block here. Its status is the first row of
+  `docs/blocks/README.md`, and block 001 waits for it. Merged or not doesn't matter, because
+  branches stack.
+- **Closed branches are frozen.** No commit lands on a Closed branch, and nothing is merged into
+  one. A problem found later is fixed in the block in progress (tech-debt-and-bugs rule).
 - **NEEDS WORK:** fix on the same branch, update the completion log, and run `/review-block` again.
   That is the next round, with a new record.
 
@@ -28,7 +34,7 @@ LendLoop is built in numbered delivery blocks ([docs/blocks/](../../docs/blocks/
 A branch may merge only when all of these hold:
 - its latest review record says PASS or PASS WITH NOTES;
 - every commit after the reviewed commit is **bookkeeping** only (below);
-- CI is green.
+- CI is green. The planning baseline is exempt, because CI arrives in block 001.
 
 **Bookkeeping** is exactly this list:
 - review records and their author responses (`docs/reviews/*-review-<round>.md`);

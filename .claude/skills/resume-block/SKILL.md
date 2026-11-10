@@ -40,9 +40,10 @@ state first.
    - the partial completion log, `docs/logs/$ARGUMENTS-completion.md`;
    - the review records, `docs/reviews/$ARGUMENTS-review-*.md`.
 5. Check `docs/tech-debt.md` for items that reference this block.
-6. Work out the base branch the same way `/run-block` does. Closed branches never change, so there
-   is nothing to merge in. If the base did gain non-bookkeeping commits, stop and tell the
-   developer: that breaks the fix-forward rule.
+6. The base is the branch named in the completion log's Branch line, or, before the log exists,
+   the one `/run-block` would pick: block $ARGUMENTS−1's branch, or `main` once it has merged.
+   Closed branches never change, so there is nothing to merge in. If the base gained commits
+   after this branch was cut, stop and tell the developer: Closed branches are frozen.
 
 ## Step 2 — Assess
 

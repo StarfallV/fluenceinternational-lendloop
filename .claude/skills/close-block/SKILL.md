@@ -37,7 +37,7 @@ NOTES.
    changed, stop: another review round is needed (`/review-block $ARGUMENTS`).
 3. **CI.** CI must be green for the branch's latest push: `gh run list --branch <branch>` if `gh`
    is available, or the GitHub Actions page. If neither is available, run the CI commands locally
-   and record the result.
+   and record the result. (The planning baseline is exempt: CI arrives in block 001.)
 
 ## Step 1 — Review notes
 

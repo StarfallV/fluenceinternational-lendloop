@@ -44,6 +44,14 @@ How Claude Code works in this repository.
   command isn't blocked.
 - If a secret appears in output anyway, stop, tell the developer, and treat that secret as needing
   rotation.
+- The hook in `.claude/hooks/guard-secrets.mjs` blocks any shell command whose text names a secret
+  file, even when the name is only mentioned, for example in a commit message. Put such text in a
+  file instead, for example `git commit -F <file>`; never work around the hook to reach the file.
+
+## Skills
+
+- A skill's `allowed-tools` pre-approve commands only for the turn that invokes it. Later turns of
+  a long block prompt as usual.
 
 ## Things only the developer can do
 

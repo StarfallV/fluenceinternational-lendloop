@@ -77,16 +77,17 @@ Workflow skills:
 - `/report-bug`
 
 **PRs are deferred by the developer's choice** ([ADR-009 amendment](docs/adr/ADR-009-repository-workflow.md)).
-Branches stack, starting from `docs/planning-baseline`. Each block is reviewed and closed on its
-branch, and the PRs are opened and merged in order later. A Closed branch never changes again;
-fixes go forward, on top of the stack. Don't ask for `gh` or PRs until the developer wants to
-merge.
+Blocks run one at a time in number order, each branching from the one before it; block 001
+branches from `docs/planning-baseline`. Each block is reviewed and closed on its branch, and the
+PRs are opened and merged in order later. A Closed branch never changes again; fixes go into the
+block in progress. Don't ask for `gh` or PRs until the developer wants to merge.
 
 ## Repo layout (target)
 
 ```
 CLAUDE.md  README.md  CHANGELOG.md  compose.yml  .env.example  .env.n8n.example
-.claude/            rules/, skills/, agents/block-reviewer.md, settings.json (best-effort deny rules)
+.claude/            rules/, skills/, agents/block-reviewer.md, hooks/guard-secrets.mjs,
+                    settings.json (best-effort deny rules and the secret-guard hook)
 .github/            workflows/ci.yml, pull_request_template.md
 convex/             schema, auth config, http router, crons
   lib/              function wrappers, errors, validators, domain constants, dates and clock,
@@ -127,16 +128,17 @@ docs/               prd, architecture, security, production (block 012), tech-de
 | 007 | `npm run check:workflows` | Secrets, pinned data and error-workflow link checks on workflow JSON |
 | 008 | `npm run smoke:notifications` | Signed event in, email in Mailpit; bad signatures rejected |
 | 009 | `npm run smoke:reminders` | Two runs on the same day: one email and one record for the loan |
-| 009 | `npm run smoke:idempotency` | Concurrent signed write-backs against the dev deployment: one record |
+| 009 | `npm run smoke:idempotency` | Concurrent signed claims and write-backs against the dev deployment: each loan claimed once, one record, counted once |
 
 ## Never
 
 - Read `.env`, `.env.local`, `.env.n8n` or `.secrets/`, or print Convex env values.
-  `.claude/settings.json` denies the common ways, but the rule applies everywhere.
+  `.claude/settings.json` denies the common ways, and its hook blocks any shell command that names
+  those files, but the rule applies everywhere.
 - Import the raw `query`, `mutation` or `action` builders outside `convex/lib/functions.ts`.
 - Call `Date.now()` in a Convex query. Read the clock.
-- Commit to `main` directly. The only exception is an identifier claim when parallel branches are
-  cut from `main` ([ADR-009](docs/adr/ADR-009-repository-workflow.md)).
+- Commit to `main` directly. The only exception is an identifier claim, once work continues from
+  `main` with parallel branches ([ADR-009](docs/adr/ADR-009-repository-workflow.md)).
 - Merge a branch whose latest review isn't PASS or PASS WITH NOTES, or that has non-bookkeeping
   commits after the review ([merge gate](.claude/rules/delivery-blocks.md#merge-gate)).
 - Commit to, or merge into, a Closed branch.

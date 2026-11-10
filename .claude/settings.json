@@ -7,6 +7,11 @@
       "Read(./.env.*.local)",
       "Read(./.env.n8n)",
       "Read(./.secrets/**)",
+      "Edit(./.env)",
+      "Edit(./.env.local)",
+      "Edit(./.env.*.local)",
+      "Edit(./.env.n8n)",
+      "Edit(./.secrets/**)",
       "Bash(cat *.env*)",
       "Bash(cat *.secrets*)",
       "Bash(head *.env*)",
@@ -15,8 +20,6 @@
       "Bash(tail *.secrets*)",
       "Bash(less *.env*)",
       "Bash(less *.secrets*)",
-      "Bash(grep *.env*)",
-      "Bash(grep *.secrets*)",
       "Bash(source *.env*)",
       "Bash(npx convex env list*)",
       "Bash(npx convex env get*)",
@@ -30,14 +33,26 @@
       "PowerShell(cat *.secrets*)",
       "PowerShell(type *.env*)",
       "PowerShell(type *.secrets*)",
-      "PowerShell(Select-String *.env*)",
-      "PowerShell(Select-String *.secrets*)",
       "PowerShell(npx convex env list*)",
       "PowerShell(npx convex env get*)",
       "PowerShell(node *convex* env list*)",
       "PowerShell(node *convex* env get*)",
       "PowerShell(& *convex* env list*)",
       "PowerShell(& *convex* env get*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-secrets.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

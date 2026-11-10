@@ -22,11 +22,10 @@ spec, the architecture, the security rules and the acceptance criteria.
    $ARGUMENTS."
 2. The completion log `docs/logs/$ARGUMENTS-completion.md` exists on the current branch. If it
    doesn't, stop: "Block not executed yet; run /run-block first."
-3. **Find the base.**
-   - If the highest-numbered block under "Depends on" has a branch that is not yet an ancestor of
-     `origin/main`, the base is that branch.
-   - For block 001, the base is `docs/planning-baseline` if that branch is unmerged.
-   - Otherwise the base is `origin/main`.
+3. **Find the base.** It is the branch named in the completion log's **Branch** line: block
+   $ARGUMENTS−1's branch (`docs/planning-baseline` for block 001), or `origin/main` if that branch
+   had merged when this block started. Confirm it with
+   `git merge-base --is-ancestor origin/<base> HEAD`.
 
    State the base and the head SHA at the top of your report.
 

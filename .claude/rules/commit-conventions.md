@@ -3,24 +3,18 @@
 ## Branches
 
 - `main` is the trunk. It changes only through merged PRs. The exceptions are the root commit, and
-  an identifier claim when parallel branches are cut from `main`
+  identifier claims once work continues from `main` with parallel branches
   ([ADR-009](../../docs/adr/ADR-009-repository-workflow.md)).
-- **Branch names:**
-  - `feature/NNN-<slug>` for a delivery block, using the exact name in the spec's **Branch**
-    line;
-  - `fix/BUG-nnn-<slug>` for a bug fix;
-  - `docs/<slug>` or `chore/<slug>` for work outside a block.
-- **Base branch.** Branches stack while PRs are deferred (ADR-009 amendment). A block starts only
-  when every dependency is **Closed** and its base branch's latest review passed
-  ([delivery-blocks rule](delivery-blocks.md#lifecycle)). Then:
-  - if everything the block depends on has merged into `main`, the base is `main`;
-  - otherwise, the base is the newest dependency's branch. The planning baseline,
-    `docs/planning-baseline`, is the bottom of the stack.
-
-  Create the branch straight from the remote base: `git fetch origin`, then
+- **Branch names:** the exact name in the spec's **Branch** line: `feature/NNN-<slug>` for a
+  block, or `fix/BUG-nnn-<slug>` for a fix block after the last planned one. `docs/<slug>` or
+  `chore/<slug>` for work outside a block.
+- **Base branch.** Blocks run one at a time, in number order
+  ([delivery-blocks rule](delivery-blocks.md#lifecycle)). Block NNN's base is block NNN−1's branch;
+  block 001's is `docs/planning-baseline`. Once that branch has merged, the base is `main`. Create
+  the branch from the remote base: `git fetch origin`, then
   `git switch -c <branch> origin/<base>`.
-- **Closed branches are frozen.** Never merge into, commit to, or rebase a Closed branch. Fixes go
-  forward, on top of the stack ([tech-debt-and-bugs rule](tech-debt-and-bugs.md#bugs)). Never
+- **Closed branches are frozen.** Never commit to, merge into, or rebase a Closed branch. Fixes go
+  into the block in progress ([tech-debt-and-bugs rule](tech-debt-and-bugs.md#bugs)). Never
   rebase any pushed branch.
 - Push with an explicit upstream: `git push -u origin HEAD`.
 

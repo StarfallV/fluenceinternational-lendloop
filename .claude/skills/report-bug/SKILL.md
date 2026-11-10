@@ -64,6 +64,6 @@ The suspected or confirmed cause, with file and function references.
 ## Step 4 — Report
 
 Print the bug ID, title, severity and file path. Then say where the fix goes, per the
-tech-debt-and-bugs rule: on the branch of the block in progress, or, with no block in progress, on
-`fix/BUG-nnn-<slug>` cut from the newest Closed branch. Never on a Closed branch. The next steps
-are: fix, test, then the completion log.
+tech-debt-and-bugs rule: in the block in progress, or else in the next block; after block 012, in
+a fix block of its own (a spec with Branch `fix/BUG-nnn-<slug>`). Never on a Closed branch. The
+next steps are: fix, test, then the completion log of the block that carries the fix.
