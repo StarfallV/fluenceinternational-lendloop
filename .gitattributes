@@ -1,0 +1,15 @@
+# Normalise line endings to LF in the repository. The project is developed on
+# Windows, and files that end up inside Linux containers (compose config,
+# shell snippets, Caddyfile) break on CRLF.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary

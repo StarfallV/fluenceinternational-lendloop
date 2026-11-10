@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Build and test output
+build/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment files and secrets: only the documented template is committed
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Convex local backend state
+.convex/
+
+# Local container data (n8n, Mailpit)
+.data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code: personal settings stay local, project settings are committed
+.claude/settings.local.json
