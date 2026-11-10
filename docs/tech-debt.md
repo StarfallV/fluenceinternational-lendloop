@@ -248,3 +248,16 @@ The first items record trade-offs accepted during planning. They feed the produc
   and list it in security.md §5. The block 007 spec carries this.
 - **Priority:** Medium
 - **Blocked by:** Block 007
+
+### TD-014: The shadcn CLI's dependencies have open advisories
+
+- **Source:** Block 001 (`npm audit` during review round 1 fixes)
+- **Module:** WEB
+- **Description:** `npm audit` reports 6 advisories (2 low, 4 moderate), all in the `shadcn`
+  CLI's own tree: `deepmerge` (prototype poisoning, through `@shadcn/registry`) and `minimatch`
+  (ReDoS, through `ts-morph`). The only fix npm offers is a downgrade to shadcn 1.0.0. `shadcn` is a
+  dev dependency, used by the app only for its build-time `shadcn/tailwind.css`, so
+  `npm audit --omit=dev` finds 0 and nothing reaches the app bundle. Upgrade when shadcn ships
+  fixed dependencies, and recheck before the release (block 012).
+- **Priority:** Low
+- **Blocked by:** — (upstream)
