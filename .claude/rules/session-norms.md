@@ -17,7 +17,8 @@ How Claude Code works in this repository.
 - Run typecheck, lint and the relevant tests after each change. Never commit with any of them
   failing.
 - Check current tool behavior before relying on memory: read the installed package's types and
-  docs, or try it. Versions move fast here (Next.js 16, Clerk 7, n8n 2.x, TypeScript 7).
+  docs, or try it. Versions move fast here: Next.js 16, Clerk 7, and n8n 2.x. TypeScript 7 is out,
+  but the toolchain stays on 6.0.x until `typescript-eslint` supports 7.
 - Ask before making an architectural decision the docs don't cover. Otherwise choose, record the
   choice in the completion log, and write an ADR if it qualifies.
 - Don't add a dependency without giving the reason in the completion log.
@@ -36,8 +37,10 @@ How Claude Code works in this repository.
 
 ## Secrets
 
-- Never read `.env`, `.env.local` or other secret files, and never print Convex env values.
-  Check whether a variable is set with a script that reports only "set" or "missing".
+- Never read `.env`, `.env.local`, `.env.n8n`, `.secrets/` or other secret files, and never print
+  Convex env values. Check whether a variable is set with a script that reports only "set" or
+  "missing". The deny rules in `.claude/settings.json` are best-effort; the rule applies even
+  where a command isn't blocked.
 - If a secret appears in output anyway, stop, tell the developer, and treat that secret as needing
   rotation.
 

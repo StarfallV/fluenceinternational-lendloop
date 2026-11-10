@@ -12,17 +12,17 @@ dist/
 coverage/
 *.tsbuildinfo
 
-# Environment files and secrets: only the documented template is committed
+# Environment files and secrets: only the documented templates are committed
 .env
 .env.local
 .env.*.local
+.env.n8n
 !.env.example
+!.env.n8n.example
+.secrets/
 
 # Convex local backend state
 .convex/
-
-# Local container data (n8n, Mailpit)
-.data/
 
 # Logs
 *.log

@@ -5,8 +5,20 @@
       "Read(./.env)",
       "Read(./.env.local)",
       "Read(./.env.*.local)",
+      "Read(./.env.n8n)",
+      "Read(./.secrets/**)",
       "Bash(npx convex env list *)",
-      "Bash(npx convex env get *)"
+      "Bash(npx convex env get *)",
+      "Bash(cat .env*)",
+      "Bash(cat ./.env*)",
+      "Bash(cat .secrets/*)",
+      "PowerShell(npx convex env list *)",
+      "PowerShell(npx convex env get *)",
+      "PowerShell(Get-Content .env*)",
+      "PowerShell(gc .env*)",
+      "PowerShell(cat .env*)",
+      "PowerShell(type .env*)",
+      "PowerShell(Get-Content .secrets*)"
     ]
   }
 }

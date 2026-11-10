@@ -21,3 +21,4 @@ Built with Next.js (App Router), Clerk, Convex, n8n and TypeScript.
 | [docs/security.md](docs/security.md) | Threat model, controls, secrets, and data-minimization decisions |
 | [docs/adr/](docs/adr/) | Architecture decision records, with the options considered |
 | [docs/blocks/](docs/blocks/) | Delivery block specs and their status |
+| [docs/reviews/](docs/reviews/) | Independent review records for the plan and for each block |

@@ -36,7 +36,21 @@ block.
 - **Internal functions:** anything called by n8n (through `http.ts`), crons or the CLI is
   internal: `internalQuery`, `internalMutation` or `internalAction`.
 - **Dates:** "today" and date arithmetic come only from `lib/dates.ts` (ADR-008).
+  - Queries read the time with `readClock(ctx)`. Never call `Date.now()` in a query: its result is
+    cached and won't change when the day does.
+  - Mutations and actions may compute the time directly.
 - **Generated code:** `convex/_generated` is committed and never edited by hand.
+
+## Scripts (`scripts/`)
+
+- Write scripts in TypeScript, run with `tsx`, so they work the same in PowerShell 5.1, Git Bash,
+  macOS and Linux.
+- Start CLIs through their Node entry point (`process.execPath` plus the package's JS entry),
+  never `spawn("npx")` without a shell, which fails on Windows.
+- Build JSON arguments inside the script rather than asking users to quote JSON on the command
+  line, because PowerShell 5.1 strips the quotes. Expose such operations as npm scripts (for
+  example `npm run admin:grant -- <email>`).
+- Never print secret values; use the shared redaction helper for anything that might contain one.
 
 ## Next.js
 
