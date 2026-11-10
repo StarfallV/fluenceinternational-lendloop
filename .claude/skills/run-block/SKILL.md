@@ -34,7 +34,10 @@ Run these checks in order. If one fails, stop and report it.
 1. **Refresh.** Run `git fetch origin`.
 2. **Base branch** (commit-conventions rule). Blocks run one at a time, in number order:
    - the base is block $ARGUMENTS−1's branch (the Branch line of its spec), or
-     `docs/planning-baseline` for block 001;
+     `docs/planning-baseline` for block 001. A fix block's spec exists only on its own branch, so
+     if that spec isn't in this checkout, find the commit that has it with
+     `git log --all --format=%H -1 -- "docs/blocks/<NNN−1>-*.md"`, and read its Branch line with
+     `git show <sha>:<path>`;
    - if that branch has merged (`git merge-base --is-ancestor origin/<branch> origin/main`), the
      base is `main` instead.
 3. **The base is Closed.** Read the base's state from the base itself, never from the current
@@ -49,7 +52,10 @@ Run these checks in order. If one fails, stop and report it.
    If not, stop and list what is missing.
 4. **Branch.** If the spec's branch already exists, locally or on `origin`, stop and suggest
    `/resume-block $ARGUMENTS`. Otherwise run
-   `git switch -c <branch from the spec's Branch line> origin/<base>`.
+   `git switch -c <branch from the spec's Branch line> origin/<base>`. For a fix block, run this
+   from a checkout of the base, where create-blocks wrote the uncommitted spec, bug report and
+   index rows: `git switch` carries changes to tracked files only when they are the same in the
+   current checkout and in the base, and refuses otherwise.
 5. **Spec and context.** On the new branch, read `docs/blocks/$ARGUMENTS-*.md`, `CLAUDE.md`, every
    rule in `.claude/rules/`, and the architecture sections and ADRs the spec links.
 6. **Clarity.** If an acceptance criterion is ambiguous, ask the developer before building.

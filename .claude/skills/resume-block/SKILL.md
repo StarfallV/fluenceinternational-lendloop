@@ -32,7 +32,10 @@ state first.
 
 1. Run `git fetch origin`. Take the branch name from the spec's **Branch** line
    (`docs/blocks/$ARGUMENTS-*.md`): `feature/NNN-…` for a block, or `fix/BUG-nnn-…` for a fix
-   block. Find it with `git branch -a --list "*<branch>"`.
+   block. A fix block's spec exists only on its own branch, so if the spec isn't in this
+   checkout, find the commit that has it with
+   `git log --all --format=%H -1 -- "docs/blocks/$ARGUMENTS-*.md"`, and read the Branch line with
+   `git show <sha>:<path>`. Find the branch with `git branch -a --list "*<branch>"`.
    - If you are on it, continue.
    - If it exists but you are elsewhere, switch to it (`git switch <branch>`) and say so.
    - If it doesn't exist, stop and suggest `/run-block $ARGUMENTS`.

@@ -36,10 +36,11 @@ Each block must be:
 Write `docs/blocks/NNN-<kebab-slug>.md` using the template in `docs/blocks/README.md`:
 - the **Branch** line is `feature/NNN-<kebab-slug>`. A fix block, which carries a bug fix after
   the last planned block (tech-debt-and-bugs rule), uses `fix/BUG-nnn-<slug>` and lists the bug
-  report under **Inputs**. Leave a fix block's spec, its bug report and its index rows (Step 5)
-  **uncommitted**: `main` changes only through PRs, and every block branch is Closed by then.
-  `/run-block NNN` carries them onto the new fix branch and commits them in its
-  `docs: start block NNN` commit;
+  report under **Inputs**. Write a fix block's spec, its bug report and its index rows (Step 5)
+  while on its base branch (the previous block's branch, or `main` once that has merged), and
+  leave them **uncommitted**: `main` changes only through PRs, and every block branch is Closed
+  by then. `/run-block NNN`, run from that checkout, carries them onto the new fix branch and
+  commits them in its `docs: start block NNN` commit;
 - **Requirements** lists PRD IDs;
 - every acceptance criterion is testable, and names its test or its manual check.
 
