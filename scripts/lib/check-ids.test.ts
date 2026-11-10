@@ -42,6 +42,26 @@ describe("checkIds", () => {
     expect(report.problems).toEqual(["adr/ADR-002-misnamed.md is titled ADR-001"]);
   });
 
+  it("reports a docs directory that doesn't exist", () => {
+    const report = checkIds(fixture("missing"));
+
+    expect(report.definitions).toEqual([]);
+    expect(report.problems).toHaveLength(1);
+    expect(report.problems[0]).toMatch(/not found; run check:ids from the repository root$/);
+  });
+
+  it("reports a docs directory without tech-debt.md", () => {
+    const report = checkIds(fixture("no-tech-debt"));
+
+    expect(report.problems).toEqual(["tech-debt.md not found"]);
+  });
+
+  it("reports a docs directory that defines no identifiers", () => {
+    const report = checkIds(fixture("no-identifiers"));
+
+    expect(report.problems).toEqual(["no identifiers found"]);
+  });
+
   it("passes on this repository's docs", () => {
     const report = checkIds(fileURLToPath(new URL("../../docs", import.meta.url)));
 

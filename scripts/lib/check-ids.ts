@@ -71,18 +71,27 @@ export function findDuplicates(definitions: Definition[]): Map<string, string[]>
 /**
  * Checks that every TD, ADR and BUG identifier and every block number under `docsDir` is defined
  * once. TD items are defined by their heading in tech-debt.md; ADRs, bugs and blocks by their
- * file names.
+ * file names. A missing docs directory or tech-debt.md, or no identifiers at all, is a problem
+ * too, so a run from the wrong directory can't pass.
  */
 export function checkIds(docsDir: string): IdReport {
+  if (!existsSync(docsDir)) {
+    return {
+      definitions: [],
+      duplicates: new Map(),
+      problems: [`${docsDir} not found; run check:ids from the repository root`],
+    };
+  }
   const definitions = [
     ...techDebtDefinitions(docsDir),
     ...fileDefinitions(docsDir, "adr", ADR_FILE),
     ...fileDefinitions(docsDir, "bugs", BUG_FILE),
     ...fileDefinitions(docsDir, "blocks", BLOCK_FILE, "block "),
   ];
-  return {
-    definitions,
-    duplicates: findDuplicates(definitions),
-    problems: adrTitleProblems(docsDir),
-  };
+  const problems = [
+    ...(existsSync(join(docsDir, "tech-debt.md")) ? [] : ["tech-debt.md not found"]),
+    ...(definitions.length === 0 ? ["no identifiers found"] : []),
+    ...adrTitleProblems(docsDir),
+  ];
+  return { definitions, duplicates: findDuplicates(definitions), problems };
 }
