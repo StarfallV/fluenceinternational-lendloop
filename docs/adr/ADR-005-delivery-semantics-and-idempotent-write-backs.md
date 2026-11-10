@@ -117,7 +117,8 @@ four cases are documented.
 
 - Every call n8n makes to Convex is safe to retry: write-backs return `200` with `updated`,
   `duplicate`, `stale` or `created`, and a repeated claim call returns the same claims.
-- Health shows abandoned claims, and each run summary counts the claims it took over (`reclaimed`).
+- Health shows abandoned claims, and each run summary counts its loans whose claim had been
+  abandoned earlier that day (`reclaimed`).
 - `convex-test` cannot prove concurrent uniqueness, so a smoke test sends concurrent write-backs
   to the dev deployment.
 - The residual duplicate-email cases are listed in security.md §6 and TD-006.

@@ -131,13 +131,14 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
   - a call from a **different** `runId` within the lease returns none of them;
   - a repeated call with the **same** `runId` returns the same loans;
   - once the lease has expired, `health` lists the claims as abandoned. Another run then gets
-    them: its response counts them in `reclaimed`, and each record's `abandoned` count goes up;
+    them: each record's `abandoned` count goes up, and the response counts them in `reclaimed`,
+    also when that call is repeated;
   - a loan with a `sent` reminder today, or with 7 reminders sent, is never returned. A `failed`
     one is returned to the next run.
 - [ ] **Reminder write-backs** (tests):
   - a key that doesn't match the body's `loanId`, has a future date, or has no record → `400`;
   - `sent` twice → one record; `remindersSent` + 1 exactly once; `nextReminderOn` moves to the
-    next day, and the 7th reminder clears it;
+    day after the reminder's date and never backwards, and the 7th reminder clears it;
   - `sent` from a run that has lost its claim is still accepted;
   - `failed` from the run holding the claim → `failed`. `failed` from any other run → ignored
     (`stale`), and the live claim is untouched;

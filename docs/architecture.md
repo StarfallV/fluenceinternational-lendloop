@@ -202,7 +202,7 @@ Run summaries (heartbeat) and workflow errors reported by n8n.
 | `key` | string | `run:<runId>` or `error:<errorId>`. Both IDs are UUIDs minted in the workflow, so they stay unique when n8n's own execution IDs restart. Unique. |
 | `workflow` | string | A slug such as `overdue-reminders` or `loan-event-notifications`. Unknown values are stored as sent (at most 64 characters), never rejected. |
 | `kind` | `"run" \| "error"` | |
-| `counts` | optional `{ total, sent, failed, reclaimed }` | For runs. `reclaimed` counts the claims the run took over from abandoned ones. |
+| `counts` | optional `{ total, sent, failed, reclaimed }` | For runs. `reclaimed` counts the run's loans whose claim had been abandoned earlier that day (§8). |
 | `startedAt`, `finishedAt` | optional number | For runs, as reported by n8n |
 | `receivedAt` | number | Convex time. Heartbeat age is measured from this, so a skewed n8n clock cannot fake freshness. |
 | `node`, `errorCode`, `errorMessage` | optional string | For errors. Redacted and truncated. |
@@ -443,13 +443,13 @@ never reached its Respond node, can never mark an unsent email as delivered.
   `failed` and `skipped` events do not. This keeps one loan's emails in order.
 
 It then increments `attempts`, sets a 2-minute lease and a fresh `leaseToken`, and returns the
-token. Any other caller gets nothing. Two cases change the row instead:
+token. Any other caller gets nothing. Two cases change the row instead, checked in this order:
 - **Superseded:** if a newer event of the same loan is already `delivered`, the row becomes
   `skipped`, so stale news is never sent late. Checking at claim time also catches a dead letter
   that was revived while the newer event was still in flight.
-- **Blocked:** if an earlier open event stands in the way, the row's `nextAttemptAt` moves to that
-  event's `nextAttemptAt`, or to its lease expiry if it is in flight. Blocked rows therefore don't
-  crowd the front of the sweep's index.
+- **Blocked:** if an earlier open event stands in the way, the row's `nextAttemptAt` moves to the
+  later of its own and that event's next attempt (or lease expiry, if it is in flight). Blocked
+  rows therefore don't keep crowding the front of the sweep's index.
 
 **Deliver** (internal action). It claims the row, builds the payload through an internal query,
 signs it, and posts it. It **always** finishes by calling `recordOutcome` with the token. That
@@ -534,10 +534,12 @@ stateDiagram-v2
    than 7 reminders sent. Its record for today decides what happens:
    - missing: created as `sending`;
    - `failed`: claimed again;
-   - `sending` with an expired lease: taken over, and its `abandoned` count goes up. The
-     response's `reclaimed` counts these;
+   - `sending` with an expired lease: taken over, and its `abandoned` count goes up;
    - `sending` under another run with a live lease, or `sent`: skipped.
 3. Each claim sets the `runId`, a 20-minute lease, and `attempts + 1`.
+
+The response's `reclaimed` is the number of returned loans whose record has been abandoned at
+least once that day. It is computed from the records, so a repeated call reports the same number.
 
 Because it is one serializable mutation, two overlapping runs can never claim the same loan.
 `nextReminderOn` keeps the read small: loans already reminded today, long-overdue loans and
@@ -546,7 +548,8 @@ returned loans are not in the range.
 **Leases outlast runs.** The reminder workflow has an execution timeout of **10 minutes**, and a
 claim's lease is **20 minutes**. While a run can still write back, no other run can take its
 claims. Once a lease has expired, the run that held it has stopped (verified in block 009, §16).
-Even if it hadn't, its late `failed` write-backs would be ignored, and a late `sent` is still true.
+Even if it hadn't, a late `failed` from it is ignored once another run holds the claim, and a late
+`sent` is still true.
 An expired, unresolved claim shows as **abandoned** in health until the next hourly run takes it
 over. An interrupted run therefore delays a reminder by about an hour, and never drops it silently.
 
@@ -554,9 +557,9 @@ over. An interrupted run therefore delays a reminder by about an hour, and never
 - **Validation (`400`):** the key must equal `reminder:<loanId>:<date>`, match the body's `loanId`,
   have a date no later than today, and refer to an existing record.
 - **`sent`**, from any run, moves `sending` or `failed` to `sent`, which is final. In the same
-  mutation, `loans.remindersSent` goes up by one, and `nextReminderOn` moves to the next day, or is
-  cleared after the 7th reminder (long overdue). It is accepted even from a run that has lost its
-  claim, because the email did go out.
+  mutation, `loans.remindersSent` goes up by one, and `nextReminderOn` moves to the day after the
+  reminder's date (never backwards), or is cleared after the 7th reminder (long overdue). It is
+  accepted even from a run that has lost its claim, because the email did go out.
 - **`failed`** applies only to the current claim: the record must be `sending` under the same
   `runId`. Otherwise it is ignored (`stale`), so a late failure from an old run can never reopen a
   newer run's live claim.
