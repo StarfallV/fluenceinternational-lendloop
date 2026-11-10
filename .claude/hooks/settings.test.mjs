@@ -38,13 +38,19 @@ describe(".claude/settings.json", () => {
     expect(realpathSync(path)).toBe(realpathSync(hookFile));
   });
 
-  it.each(["/.env", "/.env.local", "/.env.*.local", "/.env.n8n", "/.secrets/**"])(
-    "denies reading and editing %s",
-    (path) => {
-      const deny = settings.permissions?.deny ?? [];
+  it.each([
+    "/.env",
+    "/.env.local",
+    "/.env.*.local",
+    "/.env.development",
+    "/.env.production",
+    "/.env.test",
+    "/.env.n8n",
+    "/.secrets/**",
+  ])("denies reading and editing %s", (path) => {
+    const deny = settings.permissions?.deny ?? [];
 
-      expect(deny).toContain(`Read(${path})`);
-      expect(deny).toContain(`Edit(${path})`);
-    },
-  );
+    expect(deny).toContain(`Read(${path})`);
+    expect(deny).toContain(`Edit(${path})`);
+  });
 });

@@ -9,8 +9,17 @@ const TEMPLATE = /^\.env(?:\.[\w-]+)*\.example$/i;
 
 // Commands that print secrets without naming a secret file. `[^|;&]*` keeps each match inside
 // one command of a pipeline or command list.
-const DOCKER = String.raw`\bdocker(?:-compose|\s+compose|\s+container)?`;
 const PS_READER = String.raw`\b(?:Select-String|sls|Get-Content|gc|cat|type)\b`;
+
+// `docker`, `docker-compose`, `docker compose` or `docker container`, with any options before the
+// subcommand (`-f compose.yml`, `-p lendloop`, `--context x`).
+const docker = (subcommands) => String.raw`\bdocker(?:-compose)?\b[^|;&]*?\s(?:${subcommands})\b`;
+// After `docker … exec|run`, the rest of the whole command: the separators inside an `sh -c`
+// script don't end it. A host command chained after it is over-blocked, which is acceptable.
+const REST = String.raw`[\s\S]*?`;
+// Where a command word starts: whitespace, `=` (`--entrypoint=env`), a quote, `$(`, or a
+// separator inside a script.
+const WORD_START = String.raw`[\s='"(;&|]`;
 
 const LEAKY_COMMANDS = [
   {
@@ -20,25 +29,36 @@ const LEAKY_COMMANDS = [
     reason: "`docker compose config` prints the resolved env files; add --no-env-resolution",
   },
   {
-    // `printenv`, `env` or `/proc/<pid>/environ` as the container's command, by name or by path,
-    // as an argument, an `--entrypoint` or a quoted `sh -c` script.
+    // A container's whole environment: `printenv`, `env` or `/proc/<pid>/environ`, by name or by
+    // path (but not `env:names` or an `env/` directory), or the shell's own listings: a bare
+    // `set` or `export`, `export -p`, `declare` and `typeset`.
     pattern: new RegExp(
-      String.raw`${DOCKER}\s+(?:exec|run)\b[^|;&]*[\s='"](?:\S*\/)?(?:printenv|env|environ)\b`,
+      docker("exec|run") +
+        REST +
+        String.raw`(?:${WORD_START}(?:\S*\/)?(?:printenv|env|environ)\b(?![:/.-])` +
+        String.raw`|${WORD_START}(?:set|export)\s*(?:-p\b|(?=$|['");&|]))` +
+        String.raw`|\b(?:declare|typeset)\b)`,
       "i",
     ),
     reason: "the command dumps a container's environment, which holds secrets",
   },
   {
-    // The n8n image keeps its encryption key in ~/.n8n/config, and a decrypted export prints
+    // One secret inside a container: a signing secret or the encryption key by variable name
+    // (`ENCRYPTION_KEY` also covers `$N8N_ENCRYPTION_KEY_FILE`, the key file's path),
+    // `process.env`, and n8n's ~/.n8n/config, which holds the key. A decrypted export prints
     // every credential.
     pattern: new RegExp(
-      String.raw`${DOCKER}\s+(?:exec|run|cp)\b[^|;&]*\.n8n[\\/]config\b|\bexport:credentials\b[^|;&]*--decrypted\b`,
+      docker("exec|run|cp") +
+        REST +
+        String.raw`(?:SIGNING_SECRET|ENCRYPTION_KEY|\bprocess\.env\b|\.n8n[\\/]config\b)` +
+        String.raw`|\bexport:credentials\b[^|;&]*--decrypted\b`,
       "i",
     ),
-    reason: "the command reads n8n's encryption key or decrypted credentials",
+    reason:
+      "the command reads a secret inside a container (a signing secret, n8n's encryption key or its credentials)",
   },
   {
-    pattern: /\bdocker(?:\s+container)?\s+inspect\b/i,
+    pattern: new RegExp(docker("inspect"), "i"),
     reason: "`docker inspect` prints a container's environment, which holds secrets",
   },
   {

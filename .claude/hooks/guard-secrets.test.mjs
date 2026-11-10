@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -6,8 +9,8 @@ import { describe, expect, it } from "vitest";
 const hook = fileURLToPath(new URL("./guard-secrets.mjs", import.meta.url));
 
 // Runs the hook the way Claude Code does: the tool call as JSON on stdin.
-function runHook(input) {
-  return spawnSync(process.execPath, [hook], { input, encoding: "utf8" });
+function runHook(input, hookPath = hook) {
+  return spawnSync(process.execPath, [hookPath], { input, encoding: "utf8" });
 }
 
 function toolCall(toolName, command) {
@@ -55,6 +58,23 @@ describe("guard-secrets hook", () => {
     expect(run.status).toBe(1);
     expect(run.stdout).toBe("");
     expect(run.stderr).toContain("no command field");
+  });
+
+  it("denies every command when its matcher fails to load", () => {
+    const dir = mkdtempSync(join(tmpdir(), "guard-secrets-"));
+    try {
+      copyFileSync(hook, join(dir, "guard-secrets.mjs"));
+      writeFileSync(join(dir, "secret-names.mjs"), 'const broken = new RegExp("(");\n');
+
+      const run = runHook(toolCall("Bash", "npm test"), join(dir, "guard-secrets.mjs"));
+
+      expect(run.status).toBe(0);
+      const output = JSON.parse(run.stdout).hookSpecificOutput;
+      expect(output.permissionDecision).toBe("deny");
+      expect(output.permissionDecisionReason).toContain("matcher failed to load");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("allows a Monitor WebSocket watch, which runs no command, without a warning", () => {

@@ -1,7 +1,7 @@
 # LendLoop — Security and Privacy
 
 **Status:** v1.4 (2026-11-11): §5's agent guardrails rewritten in block 001 (TD-009) and widened
-after its [review round 1](reviews/001-review-1.md). Baseline v1.3 (2026-11-10, revised after
+after its review rounds [1](reviews/001-review-1.md) and [2](reviews/001-review-2.md). Baseline v1.3 (2026-11-10, revised after
 planning review [rounds 1](reviews/planning-baseline-review-1.md),
 [2](reviews/planning-baseline-review-2.md) and [3](reviews/planning-baseline-review-3.md)).
 **Scope:** What we protect, from whom, with which controls, and which personal data goes where.
@@ -101,12 +101,18 @@ they exist.
       `Get-Content -Path .\.secrets\n8n_encryption_key`.
     - commands that print secrets without naming a file:
       - `docker compose config` (or its alias `convert`) without `--no-env-resolution`;
-      - a container's environment through `docker exec`, `docker compose exec` or
-        `docker compose run` (also `docker-compose`): `printenv` or `env`, by name or by path,
-        as an argument, an `--entrypoint` or a quoted `sh -c` script, and `/proc/<pid>/environ`;
-        and `docker inspect`;
-      - n8n's encryption key, read or copied out of the container from `~/.n8n/config`, and
-        `n8n export:credentials --decrypted`;
+      - commands run in a container with `exec` or `run` (through `docker`, `docker compose`,
+        `docker-compose` or `docker container`, with any options before the subcommand). The
+        rest of the whole command is checked, including every step of an `sh -c` script and any
+        host command chained after it. Blocked there:
+        - the whole environment: `printenv` or `env` (by name or by path, as an argument, an
+          `--entrypoint` or a script step), `/proc/<pid>/environ`, and the shell's listings: a
+          bare `set` or `export`, `export -p`, `declare` and `typeset`;
+        - one secret: any variable whose name contains `SIGNING_SECRET` or `ENCRYPTION_KEY`
+          (which includes `$N8N_ENCRYPTION_KEY_FILE`, the key file's path), and `process.env`;
+        - n8n's `~/.n8n/config`, which holds the encryption key (also with `cp`);
+      - `docker inspect`, with any options before it;
+      - `n8n export:credentials --decrypted`;
       - recursive searches that ignore `.gitignore`: `grep -r` (also `-d recurse`,
         `--directories=recurse`, abbreviated long options, and `rgrep`), `rg -u` in any short-flag
         cluster, `rg --unrestricted`, `rg --no-ignore`, `git grep --no-index` or
@@ -125,7 +131,8 @@ they exist.
     The test lists every case (`.claude/hooks/secret-names.test.mjs`), and another test checks
     the hook's registration in `.claude/settings.json`. If the hook's input is unreadable, or a
     tool call has no command (other than Monitor's WebSocket form, which runs none), it fails
-    open with a warning. If its own matching fails, it denies.
+    open with a warning. If its matcher fails to load (a broken pattern, for example) or throws,
+    it denies.
   - **Static deny rules** for the common readers (`cat`, `head`, `tail`, `less`, `source`,
     `Get-Content`, `gc`, `type`), and for `convex env list` and `convex env get` through `npx` or
     the CLI's Node entry point. They back up the hook if it fails to run.
@@ -135,8 +142,9 @@ they exist.
     built by another command (`find … -exec cat`, `xargs`);
   - a path assembled at run time, or matched by a wildcard or a search glob (`cat .e*`,
     `rg -g '*'`);
-  - a shell started inside a container, and files read inside a container other than n8n's
-    `~/.n8n/config`. The mounted key file's path is added once `compose.yml` defines it
+  - an interactive shell started inside a container, and any other read inside one: a variable
+    whose name doesn't contain `SIGNING_SECRET` or `ENCRYPTION_KEY`, or a file other than
+    `~/.n8n/config`. The key file's literal mount path is added once `compose.yml` defines it
     (TD-013).
 
   The rule in `CLAUDE.md` is what governs.

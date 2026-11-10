@@ -5,8 +5,6 @@
 // boundary.
 import { readFileSync } from "node:fs";
 
-import { findSecretAccess } from "./secret-names.mjs";
-
 let input;
 try {
   input = JSON.parse(readFileSync(0, "utf8"));
@@ -27,13 +25,24 @@ if (typeof command !== "string") {
   process.exit(1);
 }
 
-let reason;
-try {
-  reason = findSecretAccess(command);
-} catch (error) {
-  // Fail closed: if the matching itself breaks, the command doesn't run unchecked.
-  reason = `the secret guard failed (${error.message})`;
+// Fail closed from here on: if the matcher can't load or throws, the command doesn't run
+// unchecked. It is loaded dynamically, because a static import that fails (a broken pattern)
+// would crash the hook, which Claude Code treats as a non-blocking error.
+async function denialReason() {
+  let findSecretAccess;
+  try {
+    ({ findSecretAccess } = await import("./secret-names.mjs"));
+  } catch (error) {
+    return `the secret guard's matcher failed to load (${error.message})`;
+  }
+  try {
+    return findSecretAccess(command);
+  } catch (error) {
+    return `the secret guard failed (${error.message})`;
+  }
 }
+
+const reason = await denialReason();
 
 if (reason) {
   process.stdout.write(
