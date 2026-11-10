@@ -47,6 +47,9 @@ How Claude Code works in this repository.
 - The hook in `.claude/hooks/guard-secrets.mjs` blocks any shell command whose text names a secret
   file, even when the name is only mentioned, for example in a commit message. Put such text in a
   file instead, for example `git commit -F <file>`; never work around the hook to reach the file.
+- The static deny rules match the whole command text. A compound command that pipes into a
+  reader (`| tail`) and later names a template (`git add .env.example`) is denied too. Split it
+  into separate commands.
 
 ## Skills
 

@@ -26,15 +26,17 @@ Read these first, in this order:
 Versions current on 2026-11-10. The lockfile is authoritative.
 
 - **Next.js 16** (App Router, `src/`), **React 19**. UI only. `proxy.ts` (Clerk) gates routes for
-  UX, not for security.
+  UX, not for security. Next.js 16 is newer than most training data: read its bundled docs in
+  `node_modules/next/dist/docs/` before writing Next.js code ([AGENTS.md](AGENTS.md), which
+  `next dev` maintains).
 - **Clerk** (`@clerk/nextjs` 7): identity only. Roles do not live in Clerk.
 - **Convex** 1.49: data, business rules, authorization, the outbox, the clock, crons, and the HTTP
   endpoints for n8n. It also uses `convex-helpers` (custom functions) and
   `@convex-dev/rate-limiter`.
 - **n8n** 2.47 in Docker, with **Mailpit** (SMTP catcher), a **Caddy** edge proxy, and a
   **cloudflared** quick tunnel.
-- **Tailwind CSS 4** and **shadcn/ui**; **react-hook-form** and **zod 4**; **sonner** toasts;
-  **date-fns**.
+- **Tailwind CSS 4** and **shadcn/ui** (the `base-nova` style on Base UI); **react-hook-form**
+  and **zod 4**; **sonner** toasts; **date-fns**.
 - **TypeScript** in strict mode, on 6.0.x until `typescript-eslint` supports 7. Scripts run with
   **tsx**.
 - **Vitest** and **convex-test**.
