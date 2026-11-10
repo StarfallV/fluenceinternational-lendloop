@@ -15,7 +15,8 @@ Built with Next.js (App Router), Clerk, Convex, n8n and TypeScript.
 ## Development
 
 **Prerequisites:**
-- Node.js 22 or later (`.nvmrc` pins 24, which CI uses);
+- Node.js 22.13 or a later 22.x, 24, or 26 and later (`.nvmrc` pins 24, which CI uses). Node 25
+  isn't supported by Vitest;
 - npm and Git;
 - from block 007, Docker Desktop, for the local automation stack.
 

@@ -41,7 +41,7 @@ Versions current on 2026-11-10. The lockfile is authoritative.
   **tsx**.
 - **Vitest** and **convex-test**.
 - **GitHub Actions** CI, on every pushed branch; **npm**, with `package-lock.json` committed;
-  Node ≥ 22 (`.nvmrc`).
+  Node `^22.13`, 24 or ≥ 26 (`.nvmrc` pins 24; `engines` in `package.json`).
 
 ## Module codes
 

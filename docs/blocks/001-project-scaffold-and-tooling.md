@@ -44,7 +44,9 @@ PUB-1 (shell), QA-1. Also resolves TD-009 and TD-012.
   `.nvmrc`.
 - **PR template:** `.github/pull_request_template.md` (summary, block, acceptance checklist, link
   to the review record, completion log link).
-- **Node version:** `.nvmrc` and `package.json` `engines` (Node ≥ 22, which Convex requires).
+- **Node version:** `.nvmrc` (24) and `package.json` `engines`, set to
+  `^22.13.0 || ^24.0.0 || >=26.0.0`: the range every installed tool supports. Vitest 5 leaves out
+  Node 25 and requires 22.12; `eslint-visitor-keys` 5 requires 22.13.
 - **Version:** `package.json` starts at `"version": "0.0.0"`. create-next-app writes `0.1.0`, which
   would make the first release (`npm version 0.1.0` in block 002) fail with "Version not changed".
 - **Secret guard hardening** (TD-009, added at the start of this block):
