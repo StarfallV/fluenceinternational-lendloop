@@ -143,6 +143,13 @@ The first items record trade-offs accepted during planning. They feed the produc
   Mark this item resolved when block 001 ships.
 - **Priority:** High
 - **Blocked by:** Block 001
+- **Status: Resolved (block 001).**
+  - **Hook:** the matching moved to `.claude/hooks/secret-names.mjs`, and the entry point always
+    runs. The hook is registered in exec form for Bash, PowerShell and Monitor.
+  - **Matching:** names match case-insensitively, and the leaky command shapes are blocked.
+  - **File rules:** anchored with `/`, and they cover every env file Next.js loads.
+  - **Tests:** 45 command cases, plus entry-point tests. Live probes were blocked.
+  - **Docs:** security.md §5 lists the coverage, and block 007's spec has the names-only helper.
 
 ### TD-010: Reminder claim gaps to close in block 006
 
@@ -223,3 +230,8 @@ The first items record trade-offs accepted during planning. They feed the produc
   when it ships.
 - **Priority:** Low
 - **Blocked by:** Block 001
+- **Status: Resolved (block 001).**
+  - resume-block takes the branch from the spec's Branch line.
+  - create-blocks and the spec template describe fix blocks.
+  - close-block's merge step covers the planning baseline's missing CI.
+  - New bug reports and their status lines are bookkeeping.

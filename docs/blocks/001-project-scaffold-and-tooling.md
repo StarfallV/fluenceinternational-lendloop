@@ -1,6 +1,6 @@
 # 001 — Project scaffold and tooling
 
-**Status:** In progress
+**Status:** In review
 **Module:** PLT
 **Branch:** feature/001-project-scaffold-and-tooling
 
