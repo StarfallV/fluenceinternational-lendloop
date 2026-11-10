@@ -28,8 +28,8 @@ PUB-2 (public list), LST-1 – LST-5 (views; availability arrives in 004), SEC-2
   - Tool-name validation in `convex/lib/validators.ts`: single line, no control characters.
 - **Functions in `convex/tools.ts`:**
   - `listPublic` (`publicQuery`): `{ _id, name, category }[]` of available tools, at most 60,
-    newest first, with a `returns` validator. Until block 004 every active tool counts as
-    available.
+    newest first (read through the `by_status` index), with a `returns` validator. Until block 004
+    every active tool counts as available.
   - `list` (`userQuery`, paginated, 20 per page, optional category): cards with owner display name,
     Trusted badge, condition, description, and availability.
   - `mine` (`userQuery`): at most 100 of the user's tools.
@@ -55,7 +55,7 @@ PUB-2 (public list), LST-1 – LST-5 (views; availability arrives in 004), SEC-2
 
 ## Acceptance Criteria
 - [ ] `listPublic` works signed out and returns exactly `_id`, `name` and `category` for active
-      tools, at most 60, newest first. The test asserts the exact key set and the limit.
+      tools, at most 60, newest first. The test asserts the exact key set, the order and the limit.
 - [ ] `create` and `update` enforce BR-1 – BR-3 and reject violations with `VALIDATION`.
       Boundary tests: names of 1, 2, 60 and 61 characters; a name containing a line break;
       descriptions of 500 and 501; whitespace-only fields; categories and conditions outside the

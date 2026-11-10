@@ -9,7 +9,9 @@ Stand up the Next.js app and the tooling every later block relies on: strict Typ
 format, tests, and CI, plus the LendLoop landing shell. No Convex or Clerk yet.
 
 ## Dependencies
-- Depends on: None. Branches from `docs/planning-baseline` while PRs are deferred.
+- Depends on: None. Branches from `docs/planning-baseline` while PRs are deferred, and starts only
+  once that branch's latest review (`docs/reviews/planning-baseline-review-*.md`) is PASS or PASS
+  WITH NOTES.
 - Depended on by: 002
 
 ## Requirements

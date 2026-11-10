@@ -28,8 +28,9 @@ DEL-1 – DEL-4, OPS-1.
   - an architecture summary with diagrams;
   - the security and data-minimization summary;
   - the n8n workflows, and how to import, publish and export them;
-  - testing, the requirements-coverage table, a repo map, and the delivery process with links to
-    the review records;
+  - testing, the requirements-coverage table, and a repo map;
+  - at the end, a short "How this was built" section that links the delivery process and the
+    review records, so the process stays off the main path;
   - **a short "Running this in production" section** that summarizes `docs/production.md`
     (DEL-4).
 - **`docs/production.md`,** the full production note:
@@ -46,8 +47,9 @@ DEL-1 – DEL-4, OPS-1.
   - The open tech-debt items that matter for production.
 - **Consistency:** the PRD §9 evidence column is complete, and a pass over architecture.md and
   security.md makes them match the final code.
-- **Release:** the `v1.0.0` entry in `CHANGELOG.md`, an annotated tag on `main` once merged, and a
-  GitHub Release.
+- **Release:** the `v1.0.0` entry in `CHANGELOG.md` and the version bump, in close-block's release
+  commit. The annotated tag and the GitHub Release are created later, when the stack merges
+  (close-block, "Merging").
 
 ## Acceptance Criteria
 - [ ] Following only the README, a fresh clone gets through:
@@ -57,13 +59,14 @@ DEL-1 – DEL-4, OPS-1.
   - an overdue reminder run.
 
   The run is documented in the completion log.
-- [ ] Every PRD requirement has linked evidence in §9.
+- [ ] Every PRD requirement has linked evidence in §9 from blocks 001–011. Block 012's own links
+      are added when it closes.
 - [ ] The README covers DEL-3 in full and carries the production summary (DEL-4), and
       `docs/production.md` holds the full note.
-- [ ] CI, `check:workflows` and `check:ids` are green on the release commit. The annotated
-      `v1.0.0` tag points at `main` after the merge.
+- [ ] CI, `check:workflows` and `check:ids` are green on this block's last commit before review.
 
 ## Known Constraints
-The `v1.0.0` tag and the GitHub Release need the stacked branches merged into `main` first.
+The `v1.0.0` tag and the GitHub Release need the stacked branches merged into `main` first. They
+belong to close-block's merge step, so they are not criteria of this block.
 
 **Release:** `v1.0.0`.

@@ -22,9 +22,11 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
   [security.md §5](../security.md#5-secrets-management).
 
 ## Outputs
-- **`compose.yml`**, all images pinned, all services reading `.env.n8n`:
+- **`compose.yml`**, all images pinned. Only the `n8n` service reads `.env.n8n` (`env_file`); the
+  other services get their non-secret settings inline, so no other container sees a secret:
   - `n8n` (2.47.x):
-    - `N8N_ENCRYPTION_KEY_FILE` from `.secrets/n8n_encryption_key`;
+    - `N8N_ENCRYPTION_KEY_FILE` from `.secrets/n8n_encryption_key`, once its support is verified
+      (Known Constraints);
     - timezone set to `APP_TIMEZONE`;
     - env access in nodes, and `NODE_FUNCTION_ALLOW_BUILTIN=crypto`;
     - saves no successful and no manual executions, and keeps errors for 168 h;
@@ -39,16 +41,20 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
 - **Env templates:** `.env.n8n.example` and `.env.example`, complete and commented, including where
   each variable lives.
 - **`scripts/setup.ts`** (`npm run setup`), idempotent:
-  - creates `.env.n8n` and the key file if missing;
+  - creates `.env.n8n` and the key file if missing (the key file without a trailing newline);
   - refuses to create a new encryption key when an n8n volume already exists, and explains the
     recovery;
   - sets the Convex env without echoing values (stdin if the CLI supports it);
   - starts compose and waits for health;
+  - checks that n8n uses the key from the key file, by comparing hashes and printing only "match"
+    or "mismatch";
   - imports the workflows and the SMTP credential, keeping their IDs;
   - **publishes** every workflow by ID, and verifies that each is active;
+  - runs one clock tick, so the `clock` row exists;
   - syncs the tunnel URL.
 - **`scripts/tunnel-sync.ts`** (`npm run tunnel:sync`): finds the quick-tunnel hostname and sets
-  `N8N_LOAN_EVENTS_URL`. It also runs from `predev` when the stack is up.
+  `N8N_LOAN_EVENTS_URL`. It also runs from `predev`. When the stack is down, it prints one warning
+  line and exits 0, so `npm run dev` still starts.
 - **`scripts/n8n-export.ts`** (`npm run n8n:export`): exports the workflows and sanitizes them:
   - strips pinned data, static data and instance metadata;
   - **keeps** each workflow's `id` and `settings.errorWorkflow`;
@@ -80,6 +86,13 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
       reviewed and recorded.
 - [ ] Next.js doesn't load `.env.n8n`. Proven by a test, or a recorded check, that the signing
       secret is absent from the Next.js server environment.
+- [ ] Only the n8n container has the signing secrets in its environment. Checked by variable
+      **name** only, for every service (recorded).
+- [ ] n8n uses the encryption key from the key file: setup's hash check reports "match"
+      (recorded). If n8n 2.47 ignores `N8N_ENCRYPTION_KEY_FILE`, the fallback in Known Constraints
+      is applied and recorded instead.
+- [ ] With the stack down, `npm run dev` still starts: `predev` prints one warning line and exits
+      0 (manual check, recorded).
 - [ ] Through the tunnel URL (curl results recorded):
   - `POST /webhook/lendloop/<path>` reaches n8n;
   - `GET /`, the editor paths and `/webhook-test/*` return `404` with `X-LendLoop-Edge: denied`.
@@ -95,7 +108,9 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
 - Verify on n8n 2.47 ([architecture.md §16](../architecture.md#16-open-verification-items)):
   - `$env` access and `require('crypto')` in Code nodes under task runners;
   - that CLI import keeps IDs;
-  - publishing and activating workflows by ID.
+  - publishing and activating workflows by ID;
+  - that n8n reads `N8N_ENCRYPTION_KEY_FILE`. If it doesn't, pass `N8N_ENCRYPTION_KEY` in
+    `.env.n8n` instead, record it, and widen TD-003, because `$env` can then read the key.
 - Verify whether `npx convex env set` can read values from stdin.
 - Verify how to discover the quick tunnel's hostname, and that it works with
   `--protocol http2`.

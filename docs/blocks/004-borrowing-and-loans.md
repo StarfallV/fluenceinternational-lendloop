@@ -26,10 +26,13 @@ BR-16, UX-3.
 ## Outputs
 - **Data, dates and clock:**
   - `loans` table and indexes; `remindersSent` starts at 0.
-  - `clock` table, and an hourly cron in `convex/clock.ts` that writes `today` and `now`.
+  - `clock` table, and a cron in `convex/clock.ts` that ticks every minute and writes `today` and
+    `now` only when the date or the hour has changed. The tick that writes a new date runs
+    request expiry.
   - `convex/lib/dates.ts`, tested:
     - `todayIn(tz)`, `addDays`, inclusive length, range overlap;
-    - `readClock(ctx)` for queries, which computes the time itself if the clock row is missing.
+    - `readClock(ctx)` for queries. It computes the time itself only while the clock row doesn't
+      exist yet (at most a minute after the first deployment).
   - `config:get` in `convex/config.ts` (`publicQuery` with `returns`): timezone, today, and the
     date limits for the UI.
 - **Functions in `convex/loans.ts`:**
@@ -41,12 +44,14 @@ BR-16, UX-3.
   - Overlap checks; the auto-decline on approval (BR-8); the contact reveal (BR-16).
   - `convex/model/availability.ts`: real availability (BR-12).
 - **Availability in the tools queries:**
-  - `listPublic` leaves out tools that are on loan.
+  - `listPublic` leaves out tools that are on loan. It keeps reading active tools, newest first,
+    until it has 60 available ones or has read 240.
   - `list` returns each card's availability ("On loan until …", "Booked from …").
   - `mine` returns each tool's availability and its pending-request count (LST-5).
 - **Listing deletion (BR-13):** blocked while the tool is on loan. Otherwise pending requests and
   future approved loans are cancelled with the reason `listing_deleted`.
-- **Expiry:** an hourly cron, `expirePendingRequests` (BR-15).
+- **Expiry:** `expirePendingRequests` (BR-15), run in batches by the clock tick that writes a new
+  date.
 - **Rate limit:** 10 borrow requests per hour per user.
 - **UI:**
   - Request dialog on tool cards: a date-range picker limited by `config:get`, showing booked
@@ -79,15 +84,16 @@ BR-16, UX-3.
 - [ ] A table-driven test tries every transition from every disallowed state and expects
       `CONFLICT`. A caller who isn't a party to the loan gets `NOT_FOUND` from every loan
       function.
-- [ ] The expiry cron expires pending requests whose start date has passed and leaves the rest
-      alone (test).
+- [ ] When the clock tick writes a new date, expiry expires pending requests whose start date has
+      passed and leaves the rest alone (test with fake time).
 - [ ] **Availability** (tests):
   - On loan once an approved loan starts;
   - overdue derived once the end date is before today;
   - Available after the return;
   - "Booked from" shows the next future approved loan.
-- [ ] **Public page** (test): a tool leaves `listPublic` when an approved loan starts, comes back
-      after it is returned, and the key set stays exactly `{_id, name, category}`.
+- [ ] **Public page** (tests): a tool leaves `listPublic` when an approved loan starts, comes back
+      after it is returned, and the key set stays exactly `{_id, name, category}`. With more than
+      60 active tools, some of them on loan, it still returns 60 available tools, newest first.
 - [ ] `tools:list` returns each card's availability, and `tools:mine` returns availability plus
       the pending-request count (tests). The browse badges and the My listings counts are checked
       by hand (recorded).
@@ -98,9 +104,12 @@ BR-16, UX-3.
 - [ ] The counterparty's email is present only on `approved` loans, in both views (test on result
       shapes).
 - [ ] The 11th borrow request within an hour fails with `RATE_LIMITED` (test).
-- [ ] **Clock** (tests): with a fake clock at 23:30 UTC, `todayIn` gives the right calendar date
-      for zones ahead of and behind UTC. A query that reads the clock re-runs when the hourly tick
-      changes `today`.
+- [ ] **Clock** (tests, fake time):
+  - at 23:30 UTC, `todayIn` gives the right calendar date for zones ahead of and behind UTC;
+  - a tick within the same hour writes nothing;
+  - the first tick after midnight writes the new date, and a query that reads the clock re-runs
+    and shows it;
+  - with no clock row, `readClock` computes the date itself.
 - [ ] My requests and Incoming update live when the other party acts (manual check in two browser
       profiles, recorded).
 
