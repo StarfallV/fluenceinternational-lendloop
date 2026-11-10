@@ -35,6 +35,12 @@ off-by-one bugs: a date picked at local midnight becomes the previous day in UTC
 `convex/lib/dates.ts` is the only place that computes "today". The UI reads today's date and the
 limits from a Convex query, so client and server cannot disagree.
 
+**A shared clock for queries.** Convex caches a query until the data it read changes, so calling
+`Date.now()` inside a query never notices midnight passing. Instead:
+- an hourly cron writes a single `clock` row (`today`, `now`);
+- queries read it, so every open view re-runs when the date changes;
+- mutations, which are never cached, compute the time directly.
+
 ## Rationale
 
 A neighborhood shares a clock. Calendar strings make the rules (BR-5, BR-7, BR-11, BR-12,
@@ -44,5 +50,5 @@ BR-15) direct to express and test.
 
 - The n8n schedule uses the same timezone (`GENERIC_TIMEZONE` = `APP_TIMEZONE`).
 - `Intl.DateTimeFormat` timezone support in the Convex runtime is verified in block 004.
-- A Convex query reading "today" doesn't re-run when midnight passes on its own. This is accepted
-  in security.md §6.
+- Queries see the date change within an hour of midnight. In the first hour after a deployment,
+  before the clock row exists, queries compute the time themselves.

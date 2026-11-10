@@ -50,7 +50,9 @@ URL, so any check that exists only in the UI is not a check. We need to decide:
 3. Resource-level checks (`assertToolOwner`, `assertLender`, `assertBorrower`,
    `assertLoanParty`) live in `convex/model/*`, and tests cover each one.
 
-The first admin is created with `npx convex run users:grantRole '{"email":"…","role":"admin"}'`.
+The first admin is created with `npm run admin:grant -- you@example.com`. The script calls the
+internal `users:grantRole` through the Convex CLI, and builds the JSON argument itself, so it works
+in Windows PowerShell too.
 
 ## Rationale
 

@@ -38,12 +38,22 @@ panel, with a navigation badge when anything needs attention:
 
 | Failure point | Mechanism |
 | --- | --- |
-| Convex → n8n delivery | Outbox retries with backoff, then a dead letter, which admins can retry |
-| Workflow step | The n8n error workflow records the failure through `/n8n/errors` first, then emails `ADMIN_ALERT_EMAIL` |
-| n8n not running | The reminder workflow posts a run summary (heartbeat) each run. No run within 26 h raises a warning. |
+| Convex → n8n delivery | Outbox retries with backoff, then a dead letter. Admins can retry one dead letter or all of them. A stale tunnel URL is labelled `TUNNEL_STALE`. |
+| Workflow step | The n8n error workflow records the failure through `/n8n/errors`, continuing even if that call fails, and then always emails `ADMIN_ALERT_EMAIL` |
+| n8n not running | The reminder workflow posts a run summary (heartbeat) each run, including on days with no overdue loans. A catch-up run fires when n8n starts. No run received within 26 h raises a warning. A fresh setup shows "no run yet". |
+| Bad signatures or clock skew | Each rejected inbound call is counted per day, with the last reason, on the health panel |
 
-Node-level retries (`Retry On Fail`) handle transient failures before any of this applies.
-Per-item error branches keep one bad reminder from failing the whole run.
+Node-level retries (`Retry On Fail`) handle transient failures **inside the reminder workflow**.
+The loan-event send has none, because Convex owns those retries (ADR-005). Per-item error branches
+keep one bad reminder from failing the whole run.
+
+Time-based flags ("stale", "errors in the last 24 h") are computed from the hourly `clock` row
+(ADR-008), so an open admin page updates without a reload.
+
+**On n8n 2.x an error workflow runs only when it is published.** Setup publishes all three
+workflows by their committed IDs, and `check:workflows` verifies that both working workflows link
+to the handler. Runs started from the editor don't trigger error workflows, so scripted runs use
+the signed `run-reminders` webhook instead.
 
 ## Rationale
 
@@ -53,7 +63,9 @@ same reactive UI show health that shows everything else.
 
 ## Consequences
 
-- The reminder workflow must post its run summary even when every reminder fails.
-- The error workflow uses only error metadata (workflow, node, message, execution ID), never the
-  failed execution's payload, so no personal data reaches admin emails.
+- The reminder workflow must post its run summary even when every reminder fails, and on days
+  with nothing to remind.
+- The error workflow uses only error metadata: workflow slug, node, error code, and a redacted,
+  truncated message. Never the failed execution's payload. Convex redacts again before storing.
+  Parties see only a status; admins see the redacted detail.
 - Production would add an external alert on the heartbeat (block 012).

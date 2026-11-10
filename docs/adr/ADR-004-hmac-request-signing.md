@@ -1,6 +1,6 @@
 # ADR-004 — HMAC request signing in both directions
 
-**Status:** Accepted
+**Status:** Accepted (revised 2026-11-10 after planning review round 1)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -8,7 +8,7 @@
 
 The brief requires signing webhook payloads ("e.g. HMAC with a shared secret") and verifying
 them on the receiving side, and securing the integration in both directions. Both receivers are
-public HTTP endpoints: the n8n webhook through the tunnel, and the Convex HTTP actions.
+public HTTP endpoints: the n8n webhooks through the tunnel, and the Convex HTTP actions.
 
 ## Options Considered
 
@@ -42,28 +42,50 @@ side's calls.
 
 ## Decision
 
-**Option C, with one secret per direction** (`CONVEX_TO_N8N_SIGNING_SECRET`,
-`N8N_TO_CONVEX_SIGNING_SECRET`):
+**Option C, with one secret per direction**:
+- `CONVEX_TO_N8N_SIGNING_SECRET` signs every call **to** n8n: loan events, and the scripted
+  `run-reminders` trigger.
+- `N8N_TO_CONVEX_SIGNING_SECRET` signs every call from n8n to Convex.
 
 ```
-canonical = `${timestamp}.${METHOD}.${path}.${rawBody}`
+canonical = timestamp + "\n" + METHOD + "\n" + path + "\n" + rawBody
+key       = UTF-8 bytes of the secret string (stored as base64url text; not decoded)
 X-LendLoop-Timestamp: <unix seconds>
-X-LendLoop-Signature: v1=<hex HMAC-SHA256(secret, canonical)>
+X-LendLoop-Signature: v1=<hex HMAC-SHA256(key, canonical)>
 ```
 
-Receivers enforce a ±300 s window, recompute the signature over the **raw** bytes, compare in
-constant time, and reject with a bare `401` **before** parsing JSON.
+**Receivers:**
+- enforce a ±300 s window;
+- recompute the signature over the **raw** bytes;
+- compare in constant time;
+- answer a failure with a bare `401`.
+
+Convex verifies before parsing JSON. n8n's Webhook node has already parsed the body by the time a
+Code node runs, so n8n verifies before **using** any field.
+
+**Senders** transmit exactly the bytes they signed. In n8n, that means building the JSON string
+once, signing it, and sending it as a raw body.
+
+**Shared test vector:** `convex/lib/hmac.test.ts` holds a fixed vector (secret, timestamp, method,
+path, body, expected hex), and the n8n Code node must reproduce it.
 
 ## Rationale
 
-Covering the path stops a signature captured for one endpoint from being replayed against
-another. The timestamp bounds replays to 5 minutes, and idempotency keys (ADR-005) make replays
-inside the window harmless. The `v1=` prefix leaves room to rotate the scheme or the key.
+- **Newline separators:** no field (timestamp, method, path) can contain a newline, so the
+  canonical string can't be ambiguous, even if a path ever contains a dot.
+- **The path:** covering it stops a signature captured for one endpoint from being replayed
+  against another.
+- **The timestamp:** it bounds replays to 5 minutes.
+- **The `v1=` prefix:** it leaves room to rotate the scheme or the key.
 
 ## Consequences
 
 - n8n needs env access in nodes (`N8N_BLOCK_ENV_ACCESS_IN_NODE=false`) and `crypto` in Code
-  nodes. This is set explicitly in `compose.yml`, documented as a trade-off in security.md §5,
-  and to be verified on n8n 2.x in block 007.
-- The receivers must read the raw body. On n8n that means the Webhook node's raw-body option.
-- Key rotation (accepting a current and a previous secret) is noted for production.
+  nodes. Both are set explicitly in `compose.yml` and listed as TD-003. The n8n encryption key is
+  passed as a file, so `$env` can't read it.
+- n8n 2.x removed in-memory binary mode. How a Code node reads the raw webhook body is checked in
+  block 008.
+- **Replays are absorbed differently on each side.** Calls to Convex write idempotently, so a
+  replay inside the window does nothing. A replay of a loan event to n8n inside the window would
+  send the email again. This residual risk is documented in security.md §6 and TD-006.
+- Key rotation (accepting a current and a previous secret) is TD-002.
