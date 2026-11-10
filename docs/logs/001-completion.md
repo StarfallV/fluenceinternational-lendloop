@@ -27,13 +27,14 @@
   build, check:ids), with Node from `.nvmrc` (24). Also a PR template.
 - **Project files:** `package.json` at `0.0.0` with `engines` set to
   `^22.13.0 || ^24.0.0 || >=26.0.0`; `.env.example`; the README's Development section.
-- **Secret guard, hardened (TD-009, then review round 1):**
-  - the matching logic lives in its own module, with 75 command cases and entry-point tests;
+- **Secret guard, hardened (TD-009, then review rounds 1 and 2):**
+  - the matching logic lives in its own module, with 93 command cases and entry-point tests. The
+    hook loads it dynamically, so a matcher that fails to load denies;
   - the hook is registered in exec form for Bash, PowerShell and Monitor, and a test checks that
     registration;
   - it blocks the commands that print secrets without naming a file, including the close
-    variants review round 1 found, reads of n8n's `~/.n8n/config`, and decrypted credential
-    exports;
+    variants the reviews found; in containers, whole-environment dumps, single secrets read by
+    variable name, and n8n's `~/.n8n/config`; and decrypted credential exports;
   - names match case-insensitively;
   - the file deny rules are anchored to the project root.
 - **Process gaps (TD-012):** fix blocks, the baseline PR's missing CI, and bug reports as
@@ -49,7 +50,7 @@
 | `strict` is on; ESLint forbids `any` and passes with zero warnings | PASS | `tsconfig.json` has `"strict": true`. `eslint.config.mjs` sets `@typescript-eslint/no-explicit-any` to error, and lint runs with `--max-warnings=0`. Manual: a probe file using `any` and `!` failed with 2 errors (the probe was then removed). |
 | `git ls-files --eol` shows no CRLF in the index | PASS | All 111 text files are `i/lf`; the other 2 are the PNG screenshots (`i/-text`). Checked at `e0c9dea`. |
 | `package.json` is at version `0.0.0` | PASS | `package.json` |
-| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (48 cases), `findSecretAccess › allows %s` (27), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s`. Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
+| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (61 cases), `findSecretAccess › allows %s` (32), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › denies every command when its matcher fails to load`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s` (all 8 paths). Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
 | TD-009 and TD-012 are marked resolved | PASS | `docs/tech-debt.md`, resolution lines on both items |
 
 ## Deviations from spec
@@ -160,6 +161,18 @@ round 2 reviews the fixes.
 | 8. check:ids fails open; untested paths | Fixed (`63f4bf2`): it fails closed, with CLI cases for a mistitled ADR, no identifiers and a run outside the repository; a first `convex`-project test proves the edge runtime. |
 | 9. Documentation and convention nits | Fixed: ADR-009's bookkeeping summary (`104c21f`); security.md status line and the templates note (`453a24d`); dependency reasons (Decisions); the template comment in `next.config.ts` (`826782d`). |
 | Undocumented deviations: the names-only helper; the session-norms rule | Recorded under Deviations. |
+
+[Round 2](../reviews/001-review-2.md): PASS WITH NOTES. It confirmed every round-1 item
+addressed. Its notes were fixed in this block too, so round 3 reviews them.
+
+| Finding | Outcome |
+| --- | --- |
+| 1. Docker forms with options before the subcommand, and `sh -c` steps after a separator, get through | Fixed (`f8778bf`): the container and `inspect` rules accept options before the subcommand, like the `config` rule, and check the rest of the whole command. A test row for each example; false-positive rows for `set -e`, `export X=…`, an `env/` path and `npm run env:names`. |
+| 2. One secret variable read in the container; TD-013 misses the key-file indirection | Fixed (`f8778bf`): `SIGNING_SECRET` and `ENCRYPTION_KEY` variables (which covers `$N8N_ENCRYPTION_KEY_FILE`), `process.env`, and the shell's listings (`set`, `export`, `export -p`, `declare`, `typeset`) are blocked. TD-013 now covers only the literal mount path, and §5 states the line. |
+| 3. The fix-block flow only works from the base checkout | Fixed (`aa7644a`): resume-block and run-block find a spec outside the checkout with `git log --all` and `git show` (tried on block 002's spec); create-blocks and report-bug write a fix block's files on its base, and run-block switches from there. |
+| 4a. TD-009's resolution line says 45 cases | Fixed (`f8778bf`): it gives both counts and the registration test. |
+| 4b. The registration test checks 5 of 8 deny paths | Fixed (`f8778bf`): all 8. |
+| 4c. A matcher that fails to load crashes the hook, so commands run | Fixed (`f8778bf`): the hook imports the matcher dynamically and denies when it fails to load; `guard-secrets hook › denies every command when its matcher fails to load` runs a copy of the hook next to a broken matcher. |
 
 ## Notes for the next block
 - **Before block 002, the developer:**
