@@ -21,7 +21,7 @@ only once it is Closed.
 | Block | Module | Title | Depends on | Status | Release |
 | --- | --- | --- | --- | --- | --- |
 | — | — | Planning baseline: requirements, architecture, ADRs, specs and process ([reviews](../reviews/README.md)) | — | Closed | |
-| [001](001-project-scaffold-and-tooling.md) | PLT | Project scaffold and tooling | — | Planned | |
+| [001](001-project-scaffold-and-tooling.md) | PLT | Project scaffold and tooling | — | In progress | |
 | [002](002-identity-and-roles.md) | AUTH | Identity and roles | 001 | Planned | v0.1.0 |
 | [003](003-tool-listings.md) | TOOL | Tool listings | 002 | Planned | |
 | [004](004-borrowing-and-loans.md) | LOAN | Borrowing, loans and the clock | 003 | Planned | |
