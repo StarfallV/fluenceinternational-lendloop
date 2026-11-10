@@ -33,3 +33,5 @@ All notable changes to LendLoop are recorded here. The format follows
   - blocks run in number order, each from the previous block's branch, and the planning baseline
     is Closed before block 001;
   - a PreToolUse hook blocks shell commands that name secret files.
+- Planning baseline closed after review round 4 (PASS WITH NOTES). Its notes are recorded as
+  TD-009 – TD-012, each aimed at the block that will resolve it.

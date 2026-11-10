@@ -252,3 +252,24 @@ All 11 round-3 findings are resolved. Every new finding is Minor. None of them j
 - Docker: [compose config](https://docs.docker.com/reference/cli/docker/compose/config/), [set environment variables](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/)
 - [RFC 1047](https://www.rfc-editor.org/rfc/rfc1047.txt)
 - Searches that didn't settle whether `env_file` interpolates: [variable interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/), [compose config (legacy page)](https://docs.docker.com/compose/reference/config/)
+
+---
+
+## Author response (2026-11-10)
+
+The verdict is PASS WITH NOTES. Following the reviewer's advice (New 9), every note is recorded
+as tech debt aimed at the block that will implement it, not fixed in another planning round.
+Recording them is bookkeeping, so the planning baseline is now **Closed**.
+
+| Finding | Outcome | Resolved in |
+| --- | --- | --- |
+| New 1: a reminder failing all day is never "missed" | Recorded as TD-010 | Block 006 |
+| New 2: claims of loans that leave `approved`; open claims left by `smoke:idempotency` | Recorded as TD-010 (health) and TD-011 (smoke cleanup) | Blocks 006, 009 |
+| New 3: the §8 diagram lags the text | Recorded as TD-010 | Block 006 |
+| New 4: the secret guard can be switched off | Recorded as TD-009, High. No secret files exist until block 002, so fixing it in block 001 leaves no window. | Block 001 |
+| New 5: commands that print secrets without naming a file | Recorded as TD-009 | Block 001 |
+| New 6: manual checks that can't run as written | Recorded as TD-011 | Blocks 009, 010 |
+| New 7: the RFC 1047 duplicate; the lease bound covers one stall | Recorded as TD-011 | Block 009 |
+| New 8: heartbeat threshold, backfill | Recorded as TD-010 | Block 006 |
+| New 8: fix blocks, the baseline PR, bug reports | Recorded as TD-012 | Block 001 |
+| New 9: proportion | Accepted: nothing more is added to the reminder design, and TD-010 offers dropping `reclaimed` | Block 006 |
