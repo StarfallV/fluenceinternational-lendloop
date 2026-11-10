@@ -24,3 +24,12 @@ All notable changes to LendLoop are recorded here. The format follows
   - rejection counters are capped;
   - the merge gate has one definition, and Closed branches are frozen, with fixes going forward;
   - skills pre-approve only the commands they need, and the deny rules are broader and verified.
+- Revised again after review round 3:
+  - reminders go out one loan at a time, with no send retry and a time budget, under a 30-minute
+    lease;
+  - the sweep marks abandoned and missed claims, so interrupted runs show within minutes and
+    nothing stays open past midnight;
+  - n8n's timezone is wired from `APP_TIMEZONE`, and the catch-up trigger is dropped;
+  - blocks run in number order, each from the previous block's branch, and the planning baseline
+    is Closed before block 001;
+  - a PreToolUse hook blocks shell commands that name secret files.
