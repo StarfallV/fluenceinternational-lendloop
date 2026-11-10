@@ -15,3 +15,12 @@ All notable changes to LendLoop are recorded here. The format follows
 - Independent review records (`docs/reviews/`) and a read-only reviewer agent. The planning
   baseline was revised after review round 1, which covered delivery state, timeouts, reminder
   claims, the shared clock, redaction, signing details, and the stacked-branch workflow.
+- Revised again after review round 2:
+  - reminder runs are hourly in the daytime, with retry-safe claims and leases longer than a run
+    can last, so an interrupted run delays a reminder instead of dropping it;
+  - only a positive acknowledgement counts as a delivered loan event;
+  - ordered-delivery gaps are closed;
+  - the clock ticks every minute;
+  - rejection counters are capped;
+  - the merge gate has one definition, and Closed branches are frozen, with fixes going forward;
+  - skills pre-approve only the commands they need, and the deny rules are broader and verified.
