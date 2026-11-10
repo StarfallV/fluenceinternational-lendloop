@@ -108,3 +108,118 @@ The first items record trade-offs accepted during planning. They feed the produc
   meanwhile, would close the gap.
 - **Priority:** Low
 - **Blocked by:** —
+
+### TD-009: The secret guard can be switched off, and misses commands that print secrets
+
+- **Source:** Planning review round 4, findings New 4 and New 5
+- **Module:** PLT
+- **Description:** The hook in `.claude/hooks/guard-secrets.mjs` and the deny rules have gaps:
+  - **Silent off-switches:**
+    - The shell-form hook command expands `$CLAUDE_PROJECT_DIR` to nothing when Claude Code runs
+      hooks in PowerShell (no Git Bash). The hook then fails to load, and every command runs.
+    - Run through a junction or symlink, the entry guard compares unresolved paths and exits
+      without a decision.
+    - The matcher misses the Monitor tool.
+  - **Commands that print secrets without naming a secret file:**
+    - `docker compose config` (unless it has `--no-env-resolution`);
+    - `docker compose exec n8n printenv` and `docker inspect`;
+    - recursive `grep -r` or `Get-ChildItem -Recurse | Select-String`.
+
+    The pattern is also case-sensitive, and NTFS isn't, so `.ENV` slips through.
+  - **File rules:** `Read(./…)` and `Edit(./…)` are relative to the current directory; anchor them
+    to the project with a leading `/`.
+
+  **Planned resolution in block 001**, before block 002 creates the first secret file:
+  - the documented exec form for the hook command (`node` plus an `args` path);
+  - an entry guard that compares real paths, or `secretNamesIn` in its own imported module;
+  - `Monitor` in the matcher;
+  - the command shapes above blocked (`docker compose config --no-env-resolution` stays allowed);
+  - a case-insensitive pattern, and `/`-anchored file rules;
+  - an entry-point test that spawns the hook with JSON on stdin, next to the `secretNamesIn`
+    cases;
+  - security.md §5 updated with what is covered and what isn't;
+  - a names-only helper script for block 007's container-environment check.
+
+  Mark this item resolved when block 001 ships.
+- **Priority:** High
+- **Blocked by:** Block 001
+
+### TD-010: Reminder claim gaps to close in block 006
+
+- **Source:** Planning review round 4, findings New 1, New 2, New 3, New 8 (heartbeat, backfill)
+  and New 9
+- **Module:** AUTO
+- **Description:**
+  - **A reminder that fails all day is never "missed".** The end-of-day sweep turns only open
+    claims into `missed`. A reminder that fails in every run (a rejected address, an all-day SMTP
+    outage) never raises the badge, against AUT-2's "shown to admins as missed". Move `failed` to
+    `missed` at the end of its day too, keeping its error, and test it. Loans that are due but
+    never claimed before 20:00 also leave no record.
+  - **Claims of loans that leave `approved` can't clear.** An abandoned claim of a loan returned
+    in the meantime can't be taken over. The badge stays lit until midnight, then shows the claim
+    as missed for 24 h. Either count `abandoned` and `missed` in health only while the loan is
+    approved, or resolve open reminder records in `transition()`.
+  - **The §8 diagram lags the text.** It lacks `failed`, `abandoned` and `missed` → `sent`, and
+    the direct takeover of an expired `sending` claim the sweep hasn't marked, which the text and
+    ADR-005 allow.
+  - **Heartbeat threshold.** 26 h was sized for one daily run. With hourly runs, the longest
+    healthy gap is 13 h, so about 15 h would flag an outage overnight.
+  - **Backfill.** Set `nextReminderOn` only for approved loans with fewer than 7 reminders, and
+    make running it a criterion or a Manual Step.
+  - **Optional simplification.** `reclaimed` and `reclaimedBy` can go; abandoned claims in health
+    already show an interrupted run.
+
+  **Planned resolution:** at the start of block 006, update architecture.md §8 and §12, ADR-005,
+  ADR-006, the PRD (AUT-2, ADM-4) and the block 006 spec, then build ("When the spec is wrong",
+  delivery-blocks rule). Mark this item resolved when block 006 ships.
+- **Priority:** High
+- **Blocked by:** Block 006
+
+### TD-011: Reminder checks and duplicate cases to settle in blocks 009 and 010
+
+- **Source:** Planning review round 4, findings New 2 (smoke cleanup), New 6 and New 7
+- **Module:** AUTO
+- **Description:**
+  - **Manual checks that can't run as written:**
+    - `dev:backdateLastRun` must backdate every `overdue-reminders` summary from the last 27 h,
+      not only the newest.
+    - `dev:createOverdueLoan` needs an optional demo borrower, so the containment check can make
+      Mailpit reject one borrower only.
+    - The interrupted-run check must restart n8n within about 20 s, before the first send fails
+      at nodemailer's 30 s greeting timeout.
+  - **Smoke cleanup:** `smoke:idempotency` leaves claims open, which later light the badge and
+    are then emailed for real. It should write back `failed` (code `SMOKE`) for every claim it
+    doesn't use.
+  - **Another duplicate case:** an SMTP server can accept a message and then drop the connection
+    before its reply (RFC 1047). nodemailer then reports an error although the email went out, so
+    the next run re-sends a reminder, and Convex's retry re-sends a notification. Add the case to
+    TD-006, ADR-005 and security.md §6.
+  - **Lease bound:** `socketTimeout` is an idle timer, so a server that trickles can hold a send
+    past "about 13 minutes". State the lease argument as covering one stall. Note that the
+    10-minute backstop then ends the run without a summary, and that the stalled loan can be
+    re-sent each hour while the fault lasts.
+
+  **Planned resolution:** blocks 009 and 010 update their specs and the documents above before
+  building. Mark this item resolved when both have shipped.
+- **Priority:** Medium
+- **Blocked by:** Blocks 009, 010
+
+### TD-012: Process gaps around fix blocks, the baseline PR and bug reports
+
+- **Source:** Planning review round 4, finding New 8
+- **Module:** PLT
+- **Description:**
+  - **Fix blocks:**
+    - resume-block looks for `*feature/$ARGUMENTS-*`, which misses `fix/BUG-nnn-*` branches;
+    - create-blocks always writes `feature/` Branch lines;
+    - no skill writes a fix-block spec.
+  - **Baseline PR:** close-block's merge step says "Once CI is green" without the planning
+    baseline's CI exemption. Required status checks on `main` would also block that PR.
+  - **Bug reports:** filing a bug report, or setting its status, isn't bookkeeping, so doing it
+    after a review would force another round. Add `docs/bugs/` reports and their status lines to
+    the bookkeeping list.
+
+  **Planned resolution:** block 001, with its other `.claude/` changes. Mark this item resolved
+  when it ships.
+- **Priority:** Low
+- **Blocked by:** Block 001
