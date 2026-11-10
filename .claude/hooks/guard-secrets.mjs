@@ -17,7 +17,15 @@ try {
   process.exit(1);
 }
 
-const command = typeof input?.tool_input?.command === "string" ? input.tool_input.command : "";
+const toolInput = input?.tool_input;
+const command = toolInput?.command;
+if (typeof command !== "string") {
+  // Monitor's WebSocket form runs no shell command, so there is nothing to check.
+  if (typeof toolInput?.ws === "object" && toolInput.ws !== null) process.exit(0);
+  // Any other call without a command means the protocol changed: allow it, but visibly.
+  console.error("guard-secrets: the tool call has no command field; command allowed unchecked.");
+  process.exit(1);
+}
 
 let reason;
 try {

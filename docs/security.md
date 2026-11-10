@@ -1,8 +1,9 @@
 # LendLoop — Security and Privacy
 
-**Status:** Baseline v1.3 (2026-11-10, revised after planning review
-[rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md) and
-[3](reviews/planning-baseline-review-3.md))
+**Status:** v1.4 (2026-11-11): §5's agent guardrails rewritten in block 001 (TD-009) and widened
+after its [review round 1](reviews/001-review-1.md). Baseline v1.3 (2026-11-10, revised after
+planning review [rounds 1](reviews/planning-baseline-review-1.md),
+[2](reviews/planning-baseline-review-2.md) and [3](reviews/planning-baseline-review-3.md)).
 **Scope:** What we protect, from whom, with which controls, and which personal data goes where.
 The mechanisms are specified in [architecture.md](architecture.md). This document explains why
 they exist.
@@ -99,29 +100,44 @@ they exist.
       `.secrets`. Examples: `cat .env.local`, `diff .env.n8n.example .env.n8n`, `cat .ENV`,
       `Get-Content -Path .\.secrets\n8n_encryption_key`.
     - commands that print secrets without naming a file:
-      - `docker compose config` without `--no-env-resolution`;
-      - `printenv` or `env` through `docker exec` or `docker compose exec`, and `docker inspect`;
-      - recursive searches that ignore `.gitignore`: `grep -r`, `rg -uu`, `rg --no-ignore`,
-        `Get-ChildItem -Recurse | Select-String`, `findstr /s`;
+      - `docker compose config` (or its alias `convert`) without `--no-env-resolution`;
+      - a container's environment through `docker exec`, `docker compose exec` or
+        `docker compose run` (also `docker-compose`): `printenv` or `env`, by name or by path,
+        as an argument, an `--entrypoint` or a quoted `sh -c` script, and `/proc/<pid>/environ`;
+        and `docker inspect`;
+      - n8n's encryption key, read or copied out of the container from `~/.n8n/config`, and
+        `n8n export:credentials --decrypted`;
+      - recursive searches that ignore `.gitignore`: `grep -r` (also `-d recurse`,
+        `--directories=recurse`, abbreviated long options, and `rgrep`), `rg -u` in any short-flag
+        cluster, `rg --unrestricted`, `rg --no-ignore`, `git grep --no-index` or
+        `--no-exclude-standard`, `Get-ChildItem -Recurse` (or `gci -r`, or `-Depth`) piped into
+        `Select-String`, `sls` or `Get-Content`, and `findstr /s` (also combined, as in `/si`);
       - `convex env list` and `convex env get`.
 
     It allows:
-    - the `*.example` templates;
+    - the `*.example` templates. The static rules below still deny `cat .env.example`, so read
+      the templates with the Read tool;
     - expressions such as `process.env` or `$env:X`;
     - `docker compose config --no-env-resolution`;
-    - plain `rg` and `git grep`, which respect `.gitignore`;
-    - non-recursive `grep`.
+    - plain `rg` (and `rg -U`, multiline mode) and plain `git grep`, which respect `.gitignore`;
+    - non-recursive `grep` and `findstr`.
 
-    The test lists every case (`.claude/hooks/secret-names.test.mjs`). If the hook's input is
-    unreadable, it fails open with a warning. If its own matching fails, it denies.
+    The test lists every case (`.claude/hooks/secret-names.test.mjs`), and another test checks
+    the hook's registration in `.claude/settings.json`. If the hook's input is unreadable, or a
+    tool call has no command (other than Monitor's WebSocket form, which runs none), it fails
+    open with a warning. If its own matching fails, it denies.
   - **Static deny rules** for the common readers (`cat`, `head`, `tail`, `less`, `source`,
     `Get-Content`, `gc`, `type`), and for `convex env list` and `convex env get` through `npx` or
     the CLI's Node entry point. They back up the hook if it fails to run.
 
   The guardrails don't cover:
-  - a program that opens the files itself, such as a script run with `node`;
-  - a path assembled at run time, or matched by a wildcard (`cat .e*`);
-  - a shell started inside a container.
+  - a program that opens the files itself, such as a script run with `node`, or a file list
+    built by another command (`find … -exec cat`, `xargs`);
+  - a path assembled at run time, or matched by a wildcard or a search glob (`cat .e*`,
+    `rg -g '*'`);
+  - a shell started inside a container, and files read inside a container other than n8n's
+    `~/.n8n/config`. The mounted key file's path is added once `compose.yml` defines it
+    (TD-013).
 
   The rule in `CLAUDE.md` is what governs.
 

@@ -48,4 +48,22 @@ describe("guard-secrets hook", () => {
     expect(run.stdout).toBe("");
     expect(run.stderr).toContain("guard-secrets");
   });
+
+  it("fails open with a warning when the tool call has no command", () => {
+    const run = runHook(JSON.stringify({ tool_name: "Bash", tool_input: { cmd: "cat .env" } }));
+
+    expect(run.status).toBe(1);
+    expect(run.stdout).toBe("");
+    expect(run.stderr).toContain("no command field");
+  });
+
+  it("allows a Monitor WebSocket watch, which runs no command, without a warning", () => {
+    const input = { tool_name: "Monitor", tool_input: { ws: { url: "wss://example.test/feed" } } };
+
+    const run = runHook(JSON.stringify(input));
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe("");
+    expect(run.stderr).toBe("");
+  });
 });

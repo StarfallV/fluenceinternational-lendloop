@@ -235,3 +235,16 @@ The first items record trade-offs accepted during planning. They feed the produc
   - create-blocks and the spec template describe fix blocks.
   - close-block's merge step covers the planning baseline's missing CI.
   - New bug reports and their status lines are bookkeeping.
+
+### TD-013: The secret guard doesn't know the n8n key file's path inside the container
+
+- **Source:** Block 001 ([review round 1](reviews/001-review-1.md), issue 2)
+- **Module:** PLT
+- **Description:** Block 007 mounts `.secrets/n8n_encryption_key` into the n8n container and
+  points `N8N_ENCRYPTION_KEY_FILE` at it. Inside the container the path has no `.secrets` in it,
+  so the name match misses `docker compose exec n8n cat <mount path>`. The guard already blocks
+  reads of `~/.n8n/config` (which holds the same key) and decrypted credential exports. Once
+  `compose.yml` fixes the mount path, add it to `.claude/hooks/secret-names.mjs` with a test row,
+  and list it in security.md §5. The block 007 spec carries this.
+- **Priority:** Medium
+- **Blocked by:** Block 007
