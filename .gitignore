@@ -13,13 +13,14 @@ coverage/
 *.tsbuildinfo
 
 # Environment files and secrets: only the documented templates are committed
-.env
-.env.local
-.env.*.local
-.env.n8n
+.env*
 !.env.example
 !.env.n8n.example
 .secrets/
+*.pem
+
+# Deployment platforms
+.vercel/
 
 # Convex local backend state
 .convex/
