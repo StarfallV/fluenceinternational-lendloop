@@ -34,7 +34,9 @@ Each block must be:
 ## Step 3 — Write the specs
 
 Write `docs/blocks/NNN-<kebab-slug>.md` using the template in `docs/blocks/README.md`:
-- the **Branch** line is `feature/NNN-<kebab-slug>`;
+- the **Branch** line is `feature/NNN-<kebab-slug>`. A fix block, which carries a bug fix after
+  the last planned block (tech-debt-and-bugs rule), uses `fix/BUG-nnn-<slug>` and lists the bug
+  report under **Inputs**;
 - **Requirements** lists PRD IDs;
 - every acceptance criterion is testable, and names its test or its manual check.
 

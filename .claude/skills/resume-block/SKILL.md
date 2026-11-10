@@ -30,7 +30,9 @@ state first.
 
 ## Step 1 — Gather context
 
-1. Run `git fetch origin`, then find the branch with `git branch -a --list "*feature/$ARGUMENTS-*"`.
+1. Run `git fetch origin`. Take the branch name from the spec's **Branch** line
+   (`docs/blocks/$ARGUMENTS-*.md`): `feature/NNN-…` for a block, or `fix/BUG-nnn-…` for a fix
+   block. Find it with `git branch -a --list "*<branch>"`.
    - If you are on it, continue.
    - If it exists but you are elsewhere, switch to it (`git switch <branch>`) and say so.
    - If it doesn't exist, stop and suggest `/run-block $ARGUMENTS`.

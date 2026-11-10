@@ -43,6 +43,7 @@ A branch may merge only when all of these hold:
   `docs/blocks/README.md`;
 - the Evidence column of `docs/prd.md` §9;
 - new items, and resolution lines, in `docs/tech-debt.md`;
+- new bug reports in `docs/bugs/`, and their `**Status:**` lines;
 - `CHANGELOG.md`;
 - the `version` fields that `npm version` changes in `package.json` and `package-lock.json`.
 

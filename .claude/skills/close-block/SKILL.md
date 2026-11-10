@@ -92,7 +92,9 @@ every unmerged branch in stack order, one PR at a time, starting with `docs/plan
    template that links the branch's review records and completion log. The branch below has
    already merged, so the PR shows only this branch's commits.
 3. Once CI is green, run `gh pr merge <n> --merge`. It must be a merge commit: no squash, no
-   rebase. Keep the branch: no `--delete-branch`.
+   rebase. Keep the branch: no `--delete-branch`. The planning baseline has no CI, because CI
+   arrives in block 001. Merge it before `main` requires status checks, or ask the developer to
+   merge it with admin rights.
 4. `git fetch origin`, and confirm `git merge-base --is-ancestor origin/<branch> origin/main`.
 5. **If the branch carried a release** (`chore: release vX.Y.Z`), tag that merge commit, which is
    `origin/main` right after the merge: `git tag -a vX.Y.Z <merge-sha> -m "vX.Y.Z"`, then

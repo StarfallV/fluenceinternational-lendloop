@@ -44,7 +44,7 @@ the docs are final. A Closed block may still be waiting for its PR.
 
 **Status:** Planned
 **Module:** PLT | AUTH | TOOL | LOAN | AUTO | WEB
-**Branch:** feature/NNN-short-slug
+**Branch:** feature/NNN-short-slug (a fix block after block 012: fix/BUG-nnn-short-slug)
 
 ## Goal
 One or two sentences: what this block delivers and why it matters.
