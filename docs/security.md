@@ -1,7 +1,8 @@
 # LendLoop — Security and Privacy
 
-**Status:** Baseline v1.2 (2026-11-10, revised after planning review
-[round 1](reviews/planning-baseline-review-1.md) and [round 2](reviews/planning-baseline-review-2.md))
+**Status:** Baseline v1.3 (2026-11-10, revised after planning review
+[rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md) and
+[3](reviews/planning-baseline-review-3.md))
 **Scope:** What we protect, from whom, with which controls, and which personal data goes where.
 The mechanisms are specified in [architecture.md](architecture.md). This document explains why
 they exist.
@@ -84,16 +85,22 @@ they exist.
 - If the Convex CLI can't read values from stdin, `npm run setup` passes them as command arguments
   for an instant, which is visible to local process listings. That is acceptable on a developer
   machine.
-- Claude Code deny rules are a best-effort guardrail for agents, not a security boundary. They
-  cover:
-  - the Read tool on `.env`, `.env.local`, `.env.*.local`, `.env.n8n` and `.secrets/`;
-  - common shell readers (`cat`, `head`, `tail`, `less`, `grep`, `source`; `Get-Content`, `gc`,
-    `cat`, `type`, `Select-String`) given any path containing `.env` or `.secrets`, in relative,
-    `.\` or absolute form;
-  - `convex env list` and `convex env get`, through `npx` or the CLI's Node entry point.
+- The Claude Code guardrails are best-effort, for agents, not a security boundary. They cover:
+  - **File tools:** deny rules for reading (`Read`, which Claude Code also applies to its other
+    file-reading tools) and for writing (`Edit`, which also covers `Write`) `.env`, `.env.local`,
+    `.env.*.local`, `.env.n8n` and `.secrets/`.
+  - **Shell commands:** a PreToolUse hook (`.claude/hooks/guard-secrets.mjs`) blocks any Bash or
+    PowerShell command that names a secret file: `.env`, `.env.<anything>` other than the
+    committed `*.example` templates, or anything under `.secrets`. It runs before Claude Code's
+    own read-only auto-approvals, so it also covers commands such as `diff` and `git`.
+    Expressions such as `process.env` don't name a file and stay allowed. Static deny rules for
+    the common readers (`cat`, `head`, `tail`, `less`, `Get-Content`, `type`) back it up if the
+    hook fails to run.
+  - **Convex env:** deny rules for `convex env list` and `convex env get`, through `npx` or the
+    CLI's Node entry point.
 
-  They can't cover every spelling, for example a script that opens the file. The rule in
-  `CLAUDE.md` is what governs.
+  They don't cover a program that opens the files itself, such as a script run with `node`, or a
+  file path assembled at run time. The rule in `CLAUDE.md` is what governs.
 
 ## 6. Residual risks
 

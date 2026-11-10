@@ -1,7 +1,8 @@
 # LendLoop — Architecture
 
-**Status:** Baseline v1.2 (2026-11-10, revised after planning review
-[round 1](reviews/planning-baseline-review-1.md) and [round 2](reviews/planning-baseline-review-2.md))
+**Status:** Baseline v1.3 (2026-11-10, revised after planning review
+[rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md) and
+[3](reviews/planning-baseline-review-3.md))
 **Scope:** Components, module boundaries, the data model, the authorization model, the loan
 lifecycle, and the contract between Convex and n8n. This is the authoritative technical reference.
 Requirements live in [prd.md](prd.md) and the threat model in [security.md](security.md). The
@@ -23,8 +24,8 @@ reasons behind each decision live in the [ADRs](adr/).
 4. **Only the data that is needed crosses a boundary, and error text is redacted before it is
    stored** ([security.md §4](security.md#4-data-minimization)).
 5. **Every failure ends up recorded where an admin can see it.** Retries are bounded, and dead
-   letters, workflow errors, abandoned reminder claims, rejected calls and a heartbeat are all
-   visible ([ADR-006](adr/ADR-006-failure-visibility.md)).
+   letters, workflow errors, abandoned and missed reminder claims, rejected calls and a heartbeat
+   are all visible ([ADR-006](adr/ADR-006-failure-visibility.md)).
 6. **Anything that depends on time reads a shared clock**, so live views change when the day
    changes ([ADR-008](adr/ADR-008-calendar-dates-in-one-app-timezone.md)).
 
@@ -71,7 +72,8 @@ convex/
   auth.config.ts          Clerk as the JWT issuer
   convex.config.ts        components (rate limiter)
   http.ts                 HTTP router: /n8n/* endpoints
-  crons.ts                clock tick (every minute; runs request expiry when the date changes), outbox sweep
+  crons.ts                clock tick (every minute; runs request expiry when the date changes),
+                          sweep (every 5 minutes: outbox deliveries and reminder claims)
   lib/
     functions.ts          publicQuery, identityMutation, userQuery/Mutation, adminQuery/Mutation
                           ← the only place the raw query/mutation builders are imported
@@ -145,7 +147,7 @@ Requests and loans live in one table, because a loan is an approved request.
 | `statusReason` | optional `"dates_taken" \| "cancelled_by_borrower" \| "cancelled_by_lender" \| "listing_deleted" \| "listing_removed"` | |
 | `decidedAt`, `cancelledAt`, `returnedAt` | optional number | |
 | `remindersSent` | number | Starts at 0. Increased once per `sent` reminder (BR-20). |
-| `nextReminderOn` | optional `YYYY-MM-DD` | The next day a reminder is due (§8). Set to the day after `endDate` on approval, moved to the next day by each `sent` reminder, and cleared after the 7th reminder or when the loan leaves `approved`. |
+| `nextReminderOn` | optional `YYYY-MM-DD` | The next day a reminder is due (§8). Set to the day after `endDate` on approval, moved forward by each `sent` reminder while the loan is approved, and cleared after the 7th reminder or when the loan leaves `approved`. |
 
 Indexes: `by_tool_status (toolId, status)`, `by_borrower (borrowerId, status)`,
 `by_lender (lenderId, status)`, `by_status_end (status, endDate)` (overdue),
@@ -183,15 +185,16 @@ records.
 | `kind` | `"notification" \| "reminder"` | |
 | `eventType` | optional loan event type | For notifications |
 | `recipientRole` | `"lender" \| "borrower"` | |
-| `status` | `"sending" \| "sent" \| "failed"` | `sending` exists only for reminder claims (§8) |
-| `leaseUntil` | optional number | Reminder claim lease, 20 minutes (§8) |
-| `attempts`, `abandoned` | optional number | Reminder claims: how often the loan was claimed that day, and how many of those claims expired unresolved |
+| `status` | `"sending" \| "sent" \| "failed" \| "abandoned" \| "missed"` | All but `sent` and `failed` exist only for reminder claims (§8). `abandoned`: the lease expired with no result. `missed`: the day ended that way. |
+| `leaseUntil` | optional number | Reminder claim lease, 30 minutes (§8) |
+| `attempts` | optional number | Reminder claims: how often the loan was claimed that day |
+| `reclaimedBy` | optional string | Reminder claims: the run that took the claim over after it was abandoned |
 | `errorCode`, `errorMessage` | optional string | The message is redacted and truncated to 200 characters. **Shown to admins only.** |
 | `runId` | optional string | The n8n run that holds the claim, or that produced the record |
 | `occurredAt` | number | The last change |
 
 Indexes: `by_key (idempotencyKey)`, `by_loan (loanId, occurredAt)`, `by_run (runId)`,
-`by_kind_status (kind, status)` (abandoned claims in health).
+`by_kind_status (kind, status)` (the claim sweep and health).
 
 ### `workflowRuns`
 
@@ -202,7 +205,7 @@ Run summaries (heartbeat) and workflow errors reported by n8n.
 | `key` | string | `run:<runId>` or `error:<errorId>`. Both IDs are UUIDs minted in the workflow, so they stay unique when n8n's own execution IDs restart. Unique. |
 | `workflow` | string | A slug such as `overdue-reminders` or `loan-event-notifications`. Unknown values are stored as sent (at most 64 characters), never rejected. |
 | `kind` | `"run" \| "error"` | |
-| `counts` | optional `{ total, sent, failed, reclaimed }` | For runs. `reclaimed` counts the run's loans whose claim had been abandoned earlier that day (§8). |
+| `counts` | optional `{ total, sent, failed, reclaimed }` | For runs. `reclaimed` counts the loans this run took over from abandoned claims (§8). Loans skipped for lack of time are `total − sent − failed`. |
 | `startedAt`, `finishedAt` | optional number | For runs, as reported by n8n |
 | `receivedAt` | number | Convex time. Heartbeat age is measured from this, so a skewed n8n clock cannot fake freshness. |
 | `node`, `errorCode`, `errorMessage` | optional string | For errors. Redacted and truncated. |
@@ -439,17 +442,20 @@ never reached its Respond node, can never mark an unsent email as delivered.
 - `nextAttemptAt ≤ now`;
 - there is no live lease;
 - `attempts < 6`;
-- it is the oldest non-final event of its loan. Earlier `pending` events block it; `delivered`,
-  `failed` and `skipped` events do not. This keeps one loan's emails in order.
+- no other event of its loan is in flight (holds a live lease), whether older or newer;
+- no earlier event of its loan is `pending`. `delivered`, `failed` and `skipped` events don't
+  block.
+
+Together, the last two keep one loan's emails in order, one at a time.
 
 It then increments `attempts`, sets a 2-minute lease and a fresh `leaseToken`, and returns the
 token. Any other caller gets nothing. Two cases change the row instead, checked in this order:
 - **Superseded:** if a newer event of the same loan is already `delivered`, the row becomes
-  `skipped`, so stale news is never sent late. Checking at claim time also catches a dead letter
-  that was revived while the newer event was still in flight.
-- **Blocked:** if an earlier open event stands in the way, the row's `nextAttemptAt` moves to the
-  later of its own and that event's next attempt (or lease expiry, if it is in flight). Blocked
-  rows therefore don't keep crowding the front of the sweep's index.
+  `skipped`, so stale news is never sent late. A dead letter revived while a newer event was in
+  flight waits behind it (the rule above), and is skipped once that event is delivered.
+- **Blocked:** if another event of the loan is in flight, or an earlier one is pending, the row's
+  `nextAttemptAt` moves to the later of its own and that event's next attempt (or lease expiry, if
+  it is in flight). Blocked rows therefore don't keep crowding the front of the sweep's index.
 
 **Deliver** (internal action). It claims the row, builds the payload through an internal query,
 signs it, and posts it. It **always** finishes by calling `recordOutcome` with the token. That
@@ -469,8 +475,9 @@ late answer cannot overwrite a newer attempt. Then:
 | `CONFIG`, `INTERNAL`, `400`, `401`, `403`, `413`, `422`, any other `4xx` | permanent | `failed` at once |
 
 **Next in line.** Whenever a row becomes final (`delivered`, `failed` or `skipped`), the mutation
-that made it final schedules the loan's next pending event straight away. A follow-up email, such
-as a request and then a quick cancel, doesn't wait for the sweep.
+that made it final sets the `nextAttemptAt` of the loan's oldest pending event to now, and
+schedules its delivery. A follow-up email, such as a request and then a quick cancel, doesn't wait
+for the sweep.
 
 **Backoff.** Retries wait 30 s, 2 min, 10 min, 1 h and 6 h, with ±20 % jitter: 6 attempts in all.
 
@@ -478,7 +485,8 @@ as a request and then a quick cancel, doesn't wait for the sweep.
 - schedules delivery for due `pending` rows without a live lease; the claim then applies every
   rule above;
 - dead-letters rows whose lease expired after the sixth attempt, which is a crashed final attempt
-  (code `INTERNAL`).
+  (code `INTERNAL`);
+- runs the reminder-claim sweep (§8).
 
 Convex runs a scheduled action at most once, and never re-runs one that crashed. The sweep is what
 keeps such an event from being stranded.
@@ -516,50 +524,69 @@ A loan gets at most one reminder per calendar day. That day's record,
 
 ```mermaid
 stateDiagram-v2
-  [*] --> sending: claimed by run R
-  sending --> sending: lease expired, taken over by another run
-  sending --> sent: write-back "sent", from any run
-  sending --> failed: write-back "failed", from the run holding the claim
-  failed --> sending: claimed by a later run
-  failed --> sent: write-back "sent", from any run
+  [*] --> sending: claimed by a run
+  sending --> sent: write-back "sent"
+  sending --> failed: write-back "failed" from the run holding the claim
+  sending --> abandoned: lease expired (sweep)
+  sending --> missed: lease expired after the day ended (sweep)
+  failed --> sending: claimed by a later run that day
+  abandoned --> sending: taken over by a later run that day
+  abandoned --> missed: the day ended (sweep)
   sent --> [*]
+  missed --> [*]
 ```
+
+A `sent` write-back is accepted from any run, in any state except `sent`, because the email did go
+out. A `failed` record whose day has ended stays `failed`: it is already visible, with its error.
 
 `/n8n/overdue-loans { runId }` runs as one mutation:
 1. **The run's own claims come first.** Records already `sending` under this `runId`, with a live
    lease, are returned again. A retried call therefore gets the same loans back, never an empty
    list.
-2. **Then new claims, up to 50 loans in all.** It reads loans whose `nextReminderOn` is today or
-   earlier, oldest first, at most 200 reads. A loan qualifies when it is approved and has fewer
-   than 7 reminders sent. Its record for today decides what happens:
+2. **Then new claims, up to 50 loans in all.** It reads loans with a `nextReminderOn` from the
+   lowest string up to today, `q.gt("nextReminderOn", "").lte("nextReminderOn", today)`, so loans
+   without one (unset sorts first in Convex) are never read. It reads oldest first, at most 200
+   loans. A loan qualifies when it is approved and has fewer than 7 reminders sent. Its record for
+   today decides what happens:
    - missing: created as `sending`;
    - `failed`: claimed again;
-   - `sending` with an expired lease: taken over, and its `abandoned` count goes up;
+   - `abandoned`, or `sending` with an expired lease that the sweep hasn't marked yet: taken over,
+     with `reclaimedBy` set to this run;
    - `sending` under another run with a live lease, or `sent`: skipped.
-3. Each claim sets the `runId`, a 20-minute lease, and `attempts + 1`.
+3. Each claim sets the `runId`, a 30-minute lease, and `attempts + 1`.
 
-The response's `reclaimed` is the number of returned loans whose record has been abandoned at
-least once that day. It is computed from the records, so a repeated call reports the same number.
+The response's `reclaimed` counts the returned loans whose `reclaimedBy` is this run. A repeated
+call reports the same number, and a loan is counted only by the run that took it over.
 
 Because it is one serializable mutation, two overlapping runs can never claim the same loan.
-`nextReminderOn` keeps the read small: loans already reminded today, long-overdue loans and
-returned loans are not in the range.
+`nextReminderOn` keeps the read small: finished loans, loans already reminded today, and
+long-overdue loans are outside the range.
 
-**Leases outlast runs.** The reminder workflow has an execution timeout of **10 minutes**, and a
-claim's lease is **20 minutes**. While a run can still write back, no other run can take its
-claims. Once a lease has expired, the run that held it has stopped (verified in block 009, §16).
-Even if it hadn't, a late `failed` from it is ignored once another run holds the claim, and a late
-`sent` is still true.
-An expired, unresolved claim shows as **abandoned** in health until the next hourly run takes it
-over. An interrupted run therefore delays a reminder by about an hour, and never drops it silently.
+**The claim sweep** runs every 5 minutes, inside the sweep cron (§7.3):
+- a `sending` claim whose lease has expired becomes `abandoned`, or `missed` if its day has
+  already ended;
+- an `abandoned` claim becomes `missed` once its day has ended.
+
+Health therefore shows an interrupted run within minutes, whatever the clock's precision, and no
+claim stays open past its day. A missed loan is still due, because its `nextReminderOn` didn't
+move, so the next day's first run reminds the borrower.
+
+**Leases outlast runs.** The reminder workflow handles one loan at a time and stops taking new
+loans 8 minutes after it starts (§11). A send already in progress can still take about 13 minutes
+with nodemailer's default timeouts (2 minutes to connect, 30 s for the greeting, 10 minutes idle),
+and its write-back up to 2 minutes. A run's last action therefore ends within about 23 minutes of
+its claims, inside the **30-minute** lease, so no other run takes over a claim while its run might
+still act on it. The workflow's 10-minute execution timeout is only a backstop: n8n applies it
+after the current node finishes. A send that is still in progress when its run stops can complete
+without a write-back; its claim is then taken over and the email sent again (TD-006).
 
 **Reminder write-back** (`/n8n/reminders`):
 - **Validation (`400`):** the key must equal `reminder:<loanId>:<date>`, match the body's `loanId`,
   have a date no later than today, and refer to an existing record.
-- **`sent`**, from any run, moves `sending` or `failed` to `sent`, which is final. In the same
-  mutation, `loans.remindersSent` goes up by one, and `nextReminderOn` moves to the day after the
-  reminder's date (never backwards), or is cleared after the 7th reminder (long overdue). It is
-  accepted even from a run that has lost its claim, because the email did go out.
+- **`sent`**, from any run and in any state except `sent`, moves the record to `sent`, which is
+  final. In the same mutation, `loans.remindersSent` goes up by one. While the loan is still
+  approved, `nextReminderOn` moves to the day after the reminder's date (never backwards), or is
+  cleared at the 7th reminder (long overdue). A loan that has left `approved` keeps it cleared.
 - **`failed`** applies only to the current claim: the record must be `sending` under the same
   `runId`. Otherwise it is ignored (`stale`), so a late failure from an old run can never reopen a
   newer run's live claim.
@@ -621,8 +648,9 @@ narrow cases:
 - the acknowledgement is lost after a successful send;
 - the execution timeout cancels a notification while its SMTP send is still in progress, n8n
   answers with an error, the send completes anyway, and Convex retries the event;
-- for a reminder, the send succeeds but the write-back never lands, because n8n crashes or the
-  write-back fails after its retries. The claim expires and a later run sends again.
+- for a reminder, the send succeeds but the write-back never lands: n8n crashes, the write-back
+  fails after its retries, or the run stops while a stalled send is still in progress. The claim
+  is taken over and a later run sends again.
 
 All are documented in [ADR-005](adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md) and
 TD-006, together with the replay case (§9).
@@ -646,29 +674,36 @@ references and n8n credentials.
    the webhook gets an error status (whatever it is, it isn't the acknowledgement), the error
    workflow fires, and Convex retries later.
 
-**Overdue reminders** (`overdue-reminders.json`, execution timeout 10 minutes). Three triggers:
-- **Schedule:** every hour on the hour from 09:00 to 20:00 in `APP_TIMEZONE` (cron
-  `0 9-20 * * *`). Each loan still gets at most one reminder a day. The later runs pick up claims
-  that failed or were abandoned, and loans that a host asleep in the morning missed.
+**Overdue reminders** (`overdue-reminders.json`, execution timeout 10 minutes as a backstop). Two
+triggers:
+- **Schedule:** every hour on the hour from 09:00 to 20:00 (cron `0 9-20 * * *`), in n8n's
+  timezone, which setup sets to `APP_TIMEZONE` through `GENERIC_TIMEZONE` and `TZ` in `.env.n8n`.
+  Each loan still gets at most one reminder a day. The later runs pick up claims that failed or
+  were abandoned, and loans that a host asleep in the morning missed.
 - **Signed webhook** `POST /webhook/lendloop/run-reminders`: for scripted runs, verified like loan
   events. Runs started from the editor bypass the error workflow, so scripts don't use them.
-- **n8n Trigger "instance started":** catches up as soon as n8n is back. Claims make the extra
-  runs safe.
 
 Steps:
-1. Mint a `runId` (UUID).
+1. Mint a `runId` (UUID), and note the start time.
 2. Sign the request and call `/n8n/overdue-loans`, with retries. Retrying is safe: a repeated call
    with the same `runId` returns the same claims.
 3. If the list is empty, go straight to the run summary with zero counts.
-4. Otherwise, loop over the loans. For each, email the borrower (Retry On Fail 3 times; errors go
-   to the error output), then write back with the `runId`:
-   - `sent` on success;
-   - `failed` on error, with an error code and a redacted message.
-
-   A write-back that still fails after its retries fails the run. The error workflow fires, and
-   the run's remaining claims are taken over within the hour.
+4. Otherwise, handle the loans **one at a time** (Loop Over Items, batch size 1). For each loan:
+   1. Once 8 minutes have passed since the start, skip it without sending. Its claim expires and a
+      later run takes it over.
+   2. Email the borrower. **No Retry On Fail**: a failure is written back, and a later run tries
+      again. Errors go to the error output.
+   3. Write back straight away, with the `runId`: `sent`, or `failed` with an error code and a
+      redacted message. The HTTP call has a 30 s timeout and retries, because write-backs are
+      idempotent. If it still fails, the run fails: the error workflow fires, and the remaining
+      claims are taken over later.
 5. Aggregate, then post the run summary to `/n8n/runs`, with `reclaimed` from step 2. This is the
    heartbeat; it is posted even when there was nothing to remind.
+
+One loan per iteration matters. n8n's Send Email node sends every item it receives in one go, its
+Retry On Fail re-runs the whole node, and the execution timeout waits for the current node to
+finish. A batch could therefore email some borrowers several times, or send many reminders with
+no write-back.
 
 **Error handler** (`error-handler.json`)
 1. Error Trigger.
@@ -688,9 +723,10 @@ Steps:
 | Tunnel URL out of date | `530` → `TUNNEL_STALE` | An admin health hint to run `npm run tunnel:sync`. `npm run dev` also syncs on start. |
 | Webhook URL outside the edge allowlist | `404` with `X-LendLoop-Edge: denied` → `CONFIG` | A dead letter at once, with the code |
 | A workflow step fails | n8n error workflow | An admin health entry (recent errors list every workflow slug, including unknown ones) and an admin email |
-| One reminder email fails | Per-item error branch | Status on the loan's activity; the redacted detail and run counts for admins. The next hourly run tries again. |
-| A reminder run dies or times out mid-way | Its claims' leases expire unresolved | Admin health: **abandoned** claims, with a navigation badge, until the next hourly run takes them over (counted as `reclaimed` in its summary) |
-| n8n down, or the schedule missed | **Heartbeat:** no `overdue-reminders` run summary received in 26 h (on the `clock`). Hourly daytime runs and a catch-up run when n8n starts make up missed runs. | A stale warning and a navigation badge. A fresh setup shows **no run yet**, not stale. |
+| One reminder email fails | Per-item error branch; only that loan is affected | Status on the loan's activity; the redacted detail and run counts for admins. A later run that day tries again. |
+| A reminder run dies, or runs out of time mid-way | The sweep marks its unresolved claims `abandoned` within 5 minutes of their lease expiring | Admin health: **abandoned** claims, with a navigation badge, until a later run takes them over (counted as `reclaimed` in its summary) |
+| A claim is still open when its day ends | The sweep marks it `missed` | Admin health: missed reminders for 24 h, with a navigation badge. The borrower is reminded the next day. |
+| n8n down, or the schedule missed | **Heartbeat:** no `overdue-reminders` run summary received in 26 h (on the `clock`). Hourly daytime runs make up a missed run. | A stale warning and a navigation badge. A fresh setup shows **no run yet**, not stale. |
 | Clock skew, or a wrong secret | Inbound rejections counted per day and reason (capped at 100 each) | Admin health: today's counts and the last reason, with a runbook entry. No badge: one stray request isn't an incident. A wrong secret also fails n8n's own calls, which raises workflow errors and, in time, a stale heartbeat. |
 | A Convex function throws | Convex logs | Convex dashboard. Logs carry IDs and codes, never personal data. |
 
@@ -706,7 +742,7 @@ because they contain email addresses ([security.md §4](security.md#4-data-minim
 | `CLERK_SECRET_KEY` | `.env.local` | Clerk server side (`proxy.ts`) | **yes** |
 | `CLERK_JWT_ISSUER_DOMAIN` | Convex env | Clerk JWT issuer for `auth.config.ts` | no |
 | `APP_URL` | Convex env | Links in emails | no |
-| `APP_TIMEZONE` | Convex env, and `.env.n8n` | Calendar "today", and the schedule timezone | no |
+| `APP_TIMEZONE` | Convex env, and `.env.n8n` (where setup also sets `GENERIC_TIMEZONE` and `TZ` to the same value) | Calendar "today", and n8n's schedule timezone | no |
 | `N8N_LOAN_EVENTS_URL` | Convex env (set by `npm run tunnel:sync`) | Webhook URL | no |
 | `CONVEX_TO_N8N_SIGNING_SECRET` | Convex env, and `.env.n8n` | Signs calls to n8n | **yes** |
 | `N8N_TO_CONVEX_SIGNING_SECRET` | Convex env, and `.env.n8n` | Verifies n8n's calls | **yes** |
@@ -725,6 +761,9 @@ because they contain email addresses ([security.md §4](security.md#4-data-minim
   - sets the Convex side without ever printing a value: through stdin if the CLI supports it,
     otherwise as a command argument, which is a documented local exposure;
   - refuses to create a new encryption key when an n8n data volume already exists;
+  - writes `GENERIC_TIMEZONE` and `TZ` into `.env.n8n` with the same value as `APP_TIMEZONE`,
+    because n8n's schedule uses its own timezone (default `America/New_York`), and compose's
+    `env_file` doesn't interpolate variables;
   - runs one clock tick, so the `clock` row exists from the start.
 
 ## 14. Local development topology
@@ -762,9 +801,9 @@ flowchart LR
 
 | Layer | Tooling | Covers |
 | --- | --- | --- |
-| Convex functions | Vitest + `convex-test` (edge-runtime environment; components such as the rate limiter registered explicitly) | Access rules for every public function; every loan transition (valid and invalid starting states); business-rule boundaries; outbox claim, lease token, FIFO order, acknowledgement, retry and dead-letter paths; the reminder claim state machine (same-run retries, takeover of abandoned claims, stale write-backs); HTTP endpoints (check order, signatures, bodies, idempotency, capped rejection counts); redaction |
+| Convex functions | Vitest + `convex-test` (edge-runtime environment; components such as the rate limiter registered explicitly) | Access rules for every public function; every loan transition (valid and invalid starting states); business-rule boundaries; outbox claim, lease token, FIFO order, acknowledgement, retry and dead-letter paths; the reminder claim state machine (same-run retries, abandonment and takeover, the end-of-day `missed` transition, stale write-backs, loans without `nextReminderOn`); HTTP endpoints (check order, signatures, bodies, idempotency, capped rejection counts); redaction |
 | Libraries and scripts | Vitest (node) | HMAC against the fixed vector, date helpers, redaction, workflow sanitizer and checker, ID checker |
-| Local stack | `npm run smoke:*` scripts, plus recorded manual checks | Signed event → email in Mailpit (through the Mailpit API) with the positive acknowledgement; invalid requests → `401` and no email; a reminder run twice → one email and one record; concurrent signed write-backs to the dev deployment → one record; a reminder run interrupted mid-way → its claims taken over, one reminder per borrower |
+| Local stack | `npm run smoke:*` scripts, plus recorded manual checks | Signed event → email in Mailpit (through the Mailpit API) with the positive acknowledgement; invalid requests → `401` and no email; a reminder run twice → one email and one record; concurrent claim calls and write-backs to the dev deployment → each loan claimed once, one record, counted once; a failed send → only its own loan affected; a reminder run interrupted mid-way → its claims taken over, one reminder per borrower |
 | UI | Typecheck, plus a manual QA checklist in each block's completion log | Views and states |
 
 CI runs on every pushed branch and on PRs: typecheck, lint, tests, build, the workflow-JSON check
@@ -791,5 +830,6 @@ its completion log.
 | cloudflared quick-tunnel hostname discovery (metrics endpoint or logs), and `--protocol http2` | 007 |
 | n8n 2.x: reading the raw webhook body after in-memory binary mode was removed | 008 |
 | n8n 2.x: the workflow execution timeout on webhook executions, and the status code returned when a workflow fails or times out before its Respond node. Only the positive acknowledgement counts as delivered, so this decides the error class, not correctness. | 008 |
-| n8n Trigger "instance started" event; the signed `run-reminders` webhook as the script trigger | 009 |
-| n8n 2.x: the execution timeout on scheduled and webhook-started runs, including a run waiting in Send Email; whether a timed-out run triggers the error workflow | 009 |
+| n8n 2.x: `GENERIC_TIMEZONE` and `TZ` from `.env.n8n` make n8n report `APP_TIMEZONE` as its timezone | 007 |
+| The signed `run-reminders` webhook as the script trigger; Loop Over Items with batch size 1 and an elapsed-time check | 009 |
+| n8n 2.x: the execution timeout as a backstop (applied after the current node finishes); whether a timed-out run triggers the error workflow | 009 |

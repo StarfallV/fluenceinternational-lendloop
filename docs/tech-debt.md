@@ -56,7 +56,7 @@ The first items record trade-offs accepted during planning. They feed the produc
 
 ### TD-005: "Today" does not advance in an open view at midnight
 
-- **Source:** Planning baseline ([ADR-008](adr/ADR-008-calendar-dates-in-one-app-timezone.md), [security.md §6](security.md#6-residual-risks))
+- **Source:** Planning baseline ([ADR-008](adr/ADR-008-calendar-dates-in-one-app-timezone.md))
 - **Module:** LOAN
 - **Description:** Convex re-runs a query only when the data it read changes, so a view that stays
   open across midnight would show yesterday's availability and overdue state until something
@@ -69,15 +69,16 @@ The first items record trade-offs accepted during planning. They feed the produc
 
 ### TD-006: Narrow cases can still duplicate an email
 
-- **Source:** Planning baseline ([ADR-004](adr/ADR-004-hmac-request-signing.md), [ADR-005](adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md)); widened after planning review rounds 1 and 2
+- **Source:** Planning baseline ([ADR-004](adr/ADR-004-hmac-request-signing.md), [ADR-005](adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md)); widened after planning review rounds 1, 2 and 3
 - **Module:** AUTO
 - **Description:** Delivery is at least once. A recipient can get an email twice in four narrow
   cases:
   - n8n sends a notification, but its acknowledgement never reaches Convex;
   - the execution timeout cancels a notification whose SMTP send then completes anyway, after n8n
     has answered with an error, so Convex retries it;
-  - n8n sends a reminder, but the write-back never lands: n8n crashes, or the write-back fails
-    after its retries. The claim expires and a later run sends again;
+  - n8n sends a reminder, but the write-back never lands: n8n crashes, the write-back fails after
+    its retries, or the run stops while a stalled SMTP send is still in progress. The claim is
+    taken over and a later run sends again;
   - a captured, validly signed loan event is replayed to n8n inside the 5-minute window.
 
   Duplicate *records* are impossible in all four. Production should pass `eventId` (or the

@@ -1,6 +1,6 @@
 # ADR-005 — At-least-once delivery, idempotent write-backs, claimed reminders
 
-**Status:** Accepted (revised 2026-11-10 after planning review rounds 1 and 2)
+**Status:** Accepted (revised 2026-11-10 after planning review rounds 1, 2 and 3)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -12,7 +12,8 @@ choices follow:
 1. When does n8n acknowledge a loan event, and who owns its retries?
 2. How does Convex keep write-backs unique when it has no unique indexes?
 3. How do we stop two reminder runs from emailing the same borrower twice?
-4. How do we make sure an interrupted or retried reminder run doesn't skip anyone?
+4. How do we make sure an interrupted or retried reminder run doesn't skip anyone, or skips them
+   visibly?
 
 ## Options Considered
 
@@ -52,9 +53,18 @@ disjoint.
 
 A single daily run loses the day for every loan it had claimed when it is interrupted, and for
 every loan when the host is asleep at the scheduled time. A claim that blocks other runs must also
-be released when its run dies, without letting a still-running run be overtaken. Running hourly in
-the daytime, with a per-day key, keeps "at most once a day" while retrying failed and abandoned
-claims within the hour. A lease that is longer than a run can last ties each claim to its run.
+be released when its run dies, without letting a run that is still working be overtaken. Running
+hourly in the daytime, with a per-day key, keeps "at most once a day" while retrying failed and
+abandoned claims within the hour. A lease that outlasts anything its run can still do ties each
+claim to its run.
+
+### Sending reminders: one batch vs. one loan at a time
+
+n8n's Send Email node sends every item it receives in one go. Retry On Fail re-runs the whole node
+when the first item fails, and the execution timeout only takes effect after the current node
+finishes. A batch can therefore email some borrowers several times, or send many reminders that
+are never written back. One loan per iteration, with the write-back straight after the send,
+confines a failure to its own loan and bounds what a stopped run can leave behind.
 
 ## Decision
 
@@ -78,36 +88,46 @@ UUIDs are used instead of n8n execution IDs, which restart at 1 whenever the n8n
 recreated.
 
 **Reminders are claimed when they are fetched**, by a workflow that runs every hour from 09:00 to
-20:00 ([architecture.md §8, §11](../architecture.md#8-n8n--convex-http-endpoints)). The complete
-state machine of a day's record:
+20:00 and handles one loan at a time
+([architecture.md §8, §11](../architecture.md#8-n8n--convex-http-endpoints)). The complete state
+machine of a day's record:
 
 | From | Event | To |
 | --- | --- | --- |
 | — | claimed by run R | `sending` (R) |
 | `sending` (R), lease live | claim call repeated by R | unchanged, and returned again |
 | `sending` (R), lease live | claim by another run | unchanged, and not returned |
-| `sending`, lease expired | claimed by run S | `sending` (S); counted as abandoned |
-| `failed` | claimed by run S | `sending` (S) |
-| `sending` or `failed` | write-back `sent`, from any run | `sent`: final, counted once |
+| `sending`, lease expired | sweep | `abandoned`, or `missed` if its day has ended |
+| `abandoned`, or `sending` with an expired lease | claimed by run S the same day | `sending` (S), `reclaimedBy` S |
+| `abandoned` | sweep, after its day has ended | `missed`: never claimed again |
+| `failed` | claimed by run S the same day | `sending` (S) |
+| any state except `sent` | write-back `sent`, from any run | `sent` (final, counted once) |
 | `sending` (R) | write-back `failed` from R | `failed` |
-| `sending` (S) | write-back `failed` from R ≠ S | unchanged (`stale`) |
-| `failed` | write-back `failed` | unchanged (`duplicate`) |
-| `sent` | anything | unchanged (`duplicate`); never claimed again |
+| any other state | write-back `failed` | unchanged (`stale` or `duplicate`) |
+| `sent` | anything | unchanged (`duplicate`) |
 
-- **Leases outlast runs.** The reminder workflow's execution timeout is 10 minutes, and a lease is
-  20. While a run can still write back, its claims stay its own.
+- **Leases outlast runs.** A run stops taking new loans after 8 minutes. One stalled send can take
+  about 13 more minutes with nodemailer's default timeouts, and its write-back up to 2. The lease
+  is 30 minutes. The workflow's 10-minute execution timeout is only a backstop.
+- **No retry on the reminder send.** A failure is written back, and a later run tries again.
+  Write-backs do retry, because they are idempotent.
 - Write-backs carry the `runId`, and must refer to an existing record.
 
 ## Rationale
 
-Duplicate *records* are a correctness bug, and the design rules them out. Missed reminders are
-ruled out too: a retried claim call gets its own claims back, and an interrupted run's claims are
-taken over within the hour. Duplicate *emails* remain possible only in narrow cases:
+Duplicate *records* are a correctness bug, and the design rules them out. A reminder can't go
+missing silently either:
+- a retried claim call gets its own claims back;
+- an interrupted run's claims are taken over by a later run that day;
+- a claim still open when the day ends becomes a visible `missed`, and the loan is reminded the
+  next day.
+
+Duplicate *emails* remain possible only in narrow cases:
 - an acknowledgement lost after a send;
-- a send cancelled by the execution timeout that completes anyway, after n8n answered with an
-  error;
-- a reminder sent whose write-back never lands: n8n crashes, or the write-back fails after its
-  retries;
+- a notification send cancelled by the execution timeout that completes anyway, after n8n
+  answered with an error;
+- a reminder sent whose write-back never lands: n8n crashes, the write-back fails after its
+  retries, or the run stops while a stalled send is still in progress;
 - a replay of a signed event inside the window.
 
 That is the standard trade-off of webhook systems, and far better than losing notifications. All
@@ -117,8 +137,8 @@ four cases are documented.
 
 - Every call n8n makes to Convex is safe to retry: write-backs return `200` with `updated`,
   `duplicate`, `stale` or `created`, and a repeated claim call returns the same claims.
-- Health shows abandoned claims, and each run summary counts its loans whose claim had been
-  abandoned earlier that day (`reclaimed`).
-- `convex-test` cannot prove concurrent uniqueness, so a smoke test sends concurrent write-backs
-  to the dev deployment.
+- Health shows abandoned and missed claims, and each run summary counts the claims that run took
+  over (`reclaimed`).
+- `convex-test` cannot prove concurrent uniqueness, so a smoke test sends concurrent claim calls
+  and write-backs to the dev deployment.
 - The residual duplicate-email cases are listed in security.md §6 and TD-006.

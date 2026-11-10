@@ -1,7 +1,8 @@
 # LendLoop — Product Requirements
 
-**Status:** Baseline v1.2 (2026-11-10, revised after planning review
-[round 1](reviews/planning-baseline-review-1.md) and [round 2](reviews/planning-baseline-review-2.md))
+**Status:** Baseline v1.3 (2026-11-10, revised after planning review
+[rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md) and
+[3](reviews/planning-baseline-review-3.md))
 **Scope:** Everything LendLoop must do, the rules it enforces, and which delivery block delivers
 each requirement. Where the brief was silent, the gap is filled here and marked _(decision)_.
 
@@ -66,14 +67,14 @@ decisions (approve, decline, return); least privilege applies _(decision)_.
 | ADM-1 | An admin can remove any listing, with an optional reason. |
 | ADM-2 | An admin can view all loans, filtered by status. Long-overdue loans (BR-20) are flagged. |
 | ADM-3 | An admin can mark or unmark a user as a **Trusted Lender**. The users list shows each user's join date and number of listings, so people with the same display name can be told apart. |
-| ADM-4 | An admin can see automation health: failed webhook deliveries (with **Retry** and **Retry all**), recent n8n workflow errors, interrupted reminder runs, today's rejected integration calls, and when the reminder workflow last ran. The navigation flags anything that needs action: failed deliveries, recent errors, interrupted runs, or a reminder workflow that has stopped running _(decision)_. |
+| ADM-4 | An admin can see automation health: failed webhook deliveries (with **Retry** and **Retry all**), recent n8n workflow errors, abandoned and missed reminders, today's rejected integration calls, and when the reminder workflow last ran. The navigation flags anything that needs action: failed deliveries, recent errors, abandoned or missed reminders, or a reminder workflow that has stopped running _(decision)_. |
 
 ### 3.5 Automation
 
 | ID | Requirement |
 | --- | --- |
 | AUT-1 | **Request notification.** When a borrow request is created or changes status, Convex calls an n8n webhook. The workflow emails the relevant user (§5.4), using only the fields it needs. |
-| AUT-2 | **Overdue reminders.** A scheduled n8n workflow fetches overdue loans from a Convex HTTP endpoint, emails each borrower a daily reminder, and writes the reminder status back to Convex. It runs every hour in the daytime, so a missed or interrupted run is made up the same day, and each borrower still gets at most one reminder per loan per day (BR-20) _(decision)_. |
+| AUT-2 | **Overdue reminders.** A scheduled n8n workflow fetches overdue loans from a Convex HTTP endpoint, emails each borrower a daily reminder, and writes the reminder status back to Convex. It runs every hour in the daytime, so a missed or interrupted run is made up within the hour, and each borrower still gets at most one reminder per loan per day (BR-20). A reminder that still hasn't gone out when the day ends is shown to admins as missed, and the borrower is reminded the next day _(decision)_. |
 | AUT-3 | **Automation activity (bonus).** Each loan shows its recent automation activity, for example "Lender notified · 3 minutes ago" or "Overdue reminder sent · 2 days ago". |
 
 ## 4. Security, privacy and reliability requirements
