@@ -10,9 +10,11 @@ claim identifiers here **before** creating the second branch:
 
 1. Add a row for each branch. `TD-` claims take a range of 10. `ADR-` and `BUG-` claims take
    single numbers.
-2. Commit the change straight to `main` as `docs: claim <ids> for <branch>`. Apart from the root
-   commit, this is the only direct commit `main` accepts (ADR-009). Claims are serialized through
-   `main`, so two branches cannot hold the same number.
+2. Commit the change, as `docs: claim <ids> for <branch>`, to the branch the parallel branches
+   will be cut from, before cutting them. Every branch that uses a claim then contains it, and
+   claims are serialized through that one branch, so two branches cannot hold the same number.
+   While PRs are deferred, that branch is the top of the stack. If it is `main`, the claim is the
+   one direct commit `main` accepts besides the root commit (ADR-009).
 3. Stay inside your range. If it runs out, claim another one. Gaps are expected; never renumber
    to close them.
 

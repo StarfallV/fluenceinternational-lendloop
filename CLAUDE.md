@@ -78,8 +78,9 @@ Workflow skills:
 
 **PRs are deferred by the developer's choice** ([ADR-009 amendment](docs/adr/ADR-009-repository-workflow.md)).
 Branches stack, starting from `docs/planning-baseline`. Each block is reviewed and closed on its
-branch, and the PRs are opened and merged in order later. Don't ask for `gh` or PRs until the
-developer wants to merge.
+branch, and the PRs are opened and merged in order later. A Closed branch never changes again;
+fixes go forward, on top of the stack. Don't ask for `gh` or PRs until the developer wants to
+merge.
 
 ## Repo layout (target)
 
@@ -125,7 +126,7 @@ docs/               prd, architecture, security, production (block 012), tech-de
 | 007 | `npm run n8n:export` | Export and sanitize workflows into `n8n/workflows/` |
 | 007 | `npm run check:workflows` | Secrets, pinned data and error-workflow link checks on workflow JSON |
 | 008 | `npm run smoke:notifications` | Signed event in, email in Mailpit; bad signatures rejected |
-| 009 | `npm run smoke:reminders` | Two runs on the same day: one email, one record |
+| 009 | `npm run smoke:reminders` | Two runs on the same day: one email and one record for the loan |
 | 009 | `npm run smoke:idempotency` | Concurrent signed write-backs against the dev deployment: one record |
 
 ## Never
@@ -134,10 +135,11 @@ docs/               prd, architecture, security, production (block 012), tech-de
   `.claude/settings.json` denies the common ways, but the rule applies everywhere.
 - Import the raw `query`, `mutation` or `action` builders outside `convex/lib/functions.ts`.
 - Call `Date.now()` in a Convex query. Read the clock.
-- Commit to `main` directly, except identifier claims
-  ([ADR-009](docs/adr/ADR-009-repository-workflow.md)).
+- Commit to `main` directly. The only exception is an identifier claim when parallel branches are
+  cut from `main` ([ADR-009](docs/adr/ADR-009-repository-workflow.md)).
 - Merge a branch whose latest review isn't PASS or PASS WITH NOTES, or that has non-bookkeeping
-  commits after the review.
+  commits after the review ([merge gate](.claude/rules/delivery-blocks.md#merge-gate)).
+- Commit to, or merge into, a Closed branch.
 - Commit the original assignment brief. [docs/prd.md](docs/prd.md) restates the requirements.
 
 ## Quick orientation for a new task

@@ -6,9 +6,23 @@ allowed-tools:
   - Read
   - Write
   - Edit
-  - Bash
   - Glob
   - Grep
+  - Bash(git fetch *)
+  - Bash(git status *)
+  - Bash(git diff *)
+  - Bash(git log *)
+  - Bash(git show *)
+  - Bash(git ls-tree *)
+  - Bash(git branch *)
+  - Bash(git merge-base *)
+  - Bash(git rev-parse *)
+  - Bash(git switch *)
+  - Bash(git add *)
+  - Bash(git commit *)
+  - Bash(git push -u origin HEAD)
+  - Bash(npm run *)
+  - Bash(npm test *)
 ---
 
 Execute delivery block `$ARGUMENTS`. Follow this sequence exactly. Do not skip steps.
@@ -18,28 +32,37 @@ Execute delivery block `$ARGUMENTS`. Follow this sequence exactly. Do not skip s
 Run these checks in order. If one fails, stop and report it.
 
 1. **Refresh.** Run `git fetch origin`.
-2. **Spec.** Read `docs/blocks/$ARGUMENTS-*.md` from the current checkout. If it isn't there, look
-   on the newest stacked branch (`git branch -a`). If it exists nowhere, stop.
-3. **Context.** Read `CLAUDE.md`, every rule in `.claude/rules/`, and the architecture sections
-   and ADRs the spec links.
-4. **Dependencies.** For each block under "Depends on", the spec must say `Status: Closed`, and its
-   latest record `docs/reviews/<id>-review-<round>.md` must say PASS or PASS WITH NOTES. If not,
-   stop and list what is missing.
-5. **Base branch** (commit-conventions rule):
-   - If every dependency has merged into `origin/main` (its branch is an ancestor), the base is
-     `origin/main`.
-   - Otherwise, the base is the branch of the highest-numbered dependency.
-   - For block 001, the base is `docs/planning-baseline` until that branch has merged.
-6. **Branch.**
-   1. `git switch <base> && git pull --ff-only`.
-   2. `git switch -c <branch from the spec's Branch line>`.
-   3. If that branch already exists, stop and suggest `/resume-block $ARGUMENTS`.
-7. **Clarity.** If an acceptance criterion is ambiguous, ask the developer before building.
-8. **Manual steps.** If the spec lists **Manual Steps** that aren't done yet (missing env
+2. **Spec.** Read `docs/blocks/$ARGUMENTS-*.md` and note its "Depends on" list and its Branch line.
+   Every branch carries every spec, but status lines differ between branches, so read the
+   dependencies' state from their own branches (next step), never from this checkout. If the spec
+   exists nowhere, stop.
+3. **Dependencies.** For each block under "Depends on", read its state from its own branch,
+   `origin/<its Branch line>` (branches are kept after merging):
+   - `git show origin/<branch>:docs/blocks/<id>-<slug>.md` must say `Status: Closed`;
+   - its highest-round review record, listed by
+     `git ls-tree --name-only origin/<branch> docs/reviews/`, must say PASS or PASS WITH NOTES
+     (`git show origin/<branch>:docs/reviews/<id>-review-<round>.md`).
+
+   If not, stop and list what is missing.
+4. **Base branch** (commit-conventions rule):
+   - if every dependency has merged (`git merge-base --is-ancestor origin/<branch> origin/main`),
+     the base is `main`;
+   - otherwise, the base is the branch of the highest-numbered dependency;
+   - for block 001, the base is `docs/planning-baseline` until that branch has merged.
+5. **Base review.** For block 001 on the planning baseline, the highest-round
+   `docs/reviews/planning-baseline-review-*.md` on `origin/docs/planning-baseline` must say PASS or
+   PASS WITH NOTES. Any other base was already checked in step 3.
+6. **Branch.** If the spec's branch already exists, locally or on `origin`, stop and suggest
+   `/resume-block $ARGUMENTS`. Otherwise run
+   `git switch -c <branch from the spec's Branch line> origin/<base>`.
+7. **Context.** On the new branch, read `CLAUDE.md`, every rule in `.claude/rules/`, and the
+   architecture sections and ADRs the spec links.
+8. **Clarity.** If an acceptance criterion is ambiguous, ask the developer before building.
+9. **Manual steps.** If the spec lists **Manual Steps** that aren't done yet (missing env
    variables, missing logins), ask the developer to do them, and say exactly what you need. Check
    variables only through scripts that report "set" or "missing", never by printing values.
-9. **Start.** Set the spec to `Status: In progress`, and update the table in
-   `docs/blocks/README.md`. Commit: `docs: start block $ARGUMENTS`.
+10. **Start.** Set the spec to `Status: In progress`, and update the table in
+    `docs/blocks/README.md`. Commit: `docs: start block $ARGUMENTS`.
 
 ## Step 1 — Settle verification items
 

@@ -39,8 +39,9 @@ How Claude Code works in this repository.
 
 - Never read `.env`, `.env.local`, `.env.n8n`, `.secrets/` or other secret files, and never print
   Convex env values. Check whether a variable is set with a script that reports only "set" or
-  "missing". The deny rules in `.claude/settings.json` are best-effort; the rule applies even
-  where a command isn't blocked.
+  "missing". The deny rules in `.claude/settings.json` are best-effort (their coverage is listed in
+  [security.md §5](../../docs/security.md#5-secrets-management)); the rule applies even where a
+  command isn't blocked.
 - If a secret appears in output anyway, stop, tell the developer, and treat that secret as needing
   rotation.
 

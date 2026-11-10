@@ -6,9 +6,21 @@ allowed-tools:
   - Read
   - Write
   - Edit
-  - Bash
   - Glob
   - Grep
+  - Bash(git fetch *)
+  - Bash(git status *)
+  - Bash(git diff *)
+  - Bash(git log *)
+  - Bash(git show *)
+  - Bash(git merge-base *)
+  - Bash(git rev-parse *)
+  - Bash(git add *)
+  - Bash(git commit *)
+  - Bash(git push -u origin HEAD)
+  - Bash(npm version * --no-git-tag-version)
+  - Bash(npm run *)
+  - Bash(npm test *)
 ---
 
 Close delivery block `$ARGUMENTS`. Run this after its latest review record says PASS or PASS WITH
@@ -18,13 +30,11 @@ NOTES.
 
 1. **Latest review.** Read the highest-round `docs/reviews/$ARGUMENTS-review-*.md`. Its verdict
    must be PASS or PASS WITH NOTES. If it isn't, stop.
-2. **Bookkeeping only since the review.** Run `git diff --name-only <reviewed-sha>..HEAD`. Only
-   these may have changed:
-   - files under `docs/`;
-   - `CHANGELOG.md`;
-   - the `version` fields of `package.json` and `package-lock.json`.
-
-   If anything else changed, stop: another review round is needed (`/review-block $ARGUMENTS`).
+2. **Bookkeeping only since the review.** Run `git diff --stat <reviewed-sha>..HEAD`, then read
+   the diff of every file it lists. Each change must be on the bookkeeping list in
+   `.claude/rules/delivery-blocks.md` ("Merge gate"). For example, a spec may change only its
+   status line and checkboxes, and `docs/prd.md` only its §9 Evidence column. If anything else
+   changed, stop: another review round is needed (`/review-block $ARGUMENTS`).
 3. **CI.** CI must be green for the branch's latest push: `gh run list --branch <branch>` if `gh`
    is available, or the GitHub Actions page. If neither is available, run the CI commands locally
    and record the result.
@@ -32,9 +42,10 @@ NOTES.
 ## Step 1 — Review notes
 
 For every note in the latest review, choose one:
-- **Record it** as a tech-debt item with a reason. This is a docs-only change.
-- **Fix it.** If the fix touches anything besides bookkeeping files, commit it and run
-  `/review-block $ARGUMENTS` again. That is a new round, with a new record. Then restart this skill.
+- **Record it** as a tech-debt item with a reason. A new tech-debt item is bookkeeping.
+- **Fix it.** A fix is never bookkeeping, even when it only touches docs. Commit it, update the
+  completion log, and run `/review-block $ARGUMENTS` again. That is a new round, with a new
+  record. Then restart this skill.
 
 List each note's outcome in the completion log under "Review items addressed".
 
@@ -52,11 +63,13 @@ Report PASS or FAIL for each item:
 - [ ] **ADRs:** decisions in the log that qualify have ADRs, listed in the index.
 - [ ] **Bugs:** no open Critical or High bug in `docs/bugs/` references this block.
 
-If anything fails, stop and list exactly what needs fixing.
+If anything fails, stop and list exactly what needs fixing. Fixing anything outside the
+bookkeeping list means another review round.
 
 ## Step 3 — Closing commit (on the block branch)
 
-1. Set the spec to `Status: Closed`, and update the table in `docs/blocks/README.md`.
+1. Set the spec to `Status: Closed`, tick its acceptance-criteria checkboxes, and update the
+   table in `docs/blocks/README.md`.
 2. Link the completion log in the Evidence column of `docs/prd.md` §9, for each requirement this
    block delivered.
 3. Add `CHANGELOG.md` entries under `Unreleased`.
@@ -66,24 +79,26 @@ If anything fails, stop and list exactly what needs fixing.
    `npm version x.y.z --no-git-tag-version`, and commit `chore: release vX.Y.Z`.
 6. Push.
 
-The block is now **Closed**, and the next block can stack on this branch.
+The block is now **Closed**: its branch never changes again, and the next block can stack on it.
 
 ## Step 4 — Merging (only when the developer opens PRs)
 
 PRs are deferred by default. Do this step only when the developer asks for it. Then work through
-every Closed, unmerged branch in stack order, from the bottom:
+every unmerged branch in stack order, one PR at a time, starting with `docs/planning-baseline`:
 
 1. Check the merge gate again for that branch: latest review passes, only bookkeeping since, CI
    green.
 2. `gh pr create --base main --head <branch> --title "[NNN] <title>"`. Use a body from the PR
-   template that links the branch's review records and completion log.
-3. Once CI is green, run `gh pr merge <n> --merge --delete-branch`. It must be a merge commit: no
-   squash, no rebase.
-4. `git switch main && git pull --ff-only`.
-5. **If the branch carried a release** (`chore: release vX.Y.Z`), tag the merge commit:
-   `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`. For `v1.0.0` only, also run
+   template that links the branch's review records and completion log. The branch below has
+   already merged, so the PR shows only this branch's commits.
+3. Once CI is green, run `gh pr merge <n> --merge`. It must be a merge commit: no squash, no
+   rebase. Keep the branch: no `--delete-branch`.
+4. `git fetch origin`, and confirm `git merge-base --is-ancestor origin/<branch> origin/main`.
+5. **If the branch carried a release** (`chore: release vX.Y.Z`), tag that merge commit, which is
+   `origin/main` right after the merge: `git tag -a vX.Y.Z <merge-sha> -m "vX.Y.Z"`, then
+   `git push origin vX.Y.Z`. For `v1.0.0` only, also run
    `gh release create v1.0.0 --title "v1.0.0" --notes "<CHANGELOG section>"`.
-6. The next branch's PR now targets `main`. Repeat for it.
+6. Repeat for the next branch.
 
 ## Report
 

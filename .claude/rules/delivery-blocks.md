@@ -15,8 +15,11 @@ LendLoop is built in numbered delivery blocks ([docs/blocks/](../../docs/blocks/
 
 - **One block at a time,** unless identifiers were claimed for parallel work
   ([docs/id-registry.md](../../docs/id-registry.md)).
-- **A block starts** when everything it depends on is **Closed**: review passed and docs final.
-  Merged or not doesn't matter, because branches stack.
+- **A block starts** when everything it depends on is **Closed** (review passed, docs final), and
+  the latest review of its base branch passed. Block 001's base is the planning baseline, so block
+  001 waits for the baseline's review. Merged or not doesn't matter, because branches stack.
+- **Closed branches are frozen.** Nothing is merged into a Closed branch. A problem found later is
+  fixed forward, on top of the stack (tech-debt-and-bugs rule).
 - **NEEDS WORK:** fix on the same branch, update the completion log, and run `/review-block` again.
   That is the next round, with a new record.
 
@@ -24,11 +27,21 @@ LendLoop is built in numbered delivery blocks ([docs/blocks/](../../docs/blocks/
 
 A branch may merge only when all of these hold:
 - its latest review record says PASS or PASS WITH NOTES;
-- every commit after the reviewed commit is bookkeeping only: files under `docs/`,
-  `CHANGELOG.md`, and the `version` fields that `npm version` changes;
+- every commit after the reviewed commit is **bookkeeping** only (below);
 - CI is green.
 
-Any other change after the review needs another review round.
+**Bookkeeping** is exactly this list:
+- review records and their author responses (`docs/reviews/*-review-<round>.md`);
+- completion logs (`docs/logs/*-completion.md`);
+- `**Status:**` lines and acceptance-criteria checkboxes in block specs, and the status column of
+  `docs/blocks/README.md`;
+- the Evidence column of `docs/prd.md` §9;
+- new items, and resolution lines, in `docs/tech-debt.md`;
+- `CHANGELOG.md`;
+- the `version` fields that `npm version` changes in `package.json` and `package-lock.json`.
+
+Any other change after the review, including any other edit under `docs/`, needs another review
+round. This is the only definition of the gate; other documents link here.
 
 ## When the spec is wrong
 
@@ -91,8 +104,8 @@ in `docs/adr/README.md`, and add it to the index there.
 ## Keeping docs true
 
 - If the architecture or the integration contract changed, update `docs/architecture.md` in the
-  same branch.
-- If scope or a business rule changed, update `docs/prd.md`.
+  same branch, before the review.
+- If scope or a business rule changed, update `docs/prd.md`, before the review.
 - When a block closes:
   - link its completion log in the Evidence column of `docs/prd.md` §9;
   - set `Status: Closed` in the spec and in the `docs/blocks/README.md` table;

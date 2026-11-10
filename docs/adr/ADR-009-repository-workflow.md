@@ -1,6 +1,6 @@
 # ADR-009 — Repository workflow: delivery blocks on a single trunk, SemVer tags
 
-**Status:** Accepted (amended 2026-11-10)
+**Status:** Accepted (amended 2026-11-10, and the amendment revised after planning review round 2)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -58,8 +58,8 @@ not exist here.
 
 ## Consequences
 
-- `main` only changes through merged PRs, with two exceptions: the root commit, and identifier
-  claims in `docs/id-registry.md`, which must land before the branches that use them.
+- `main` only changes through merged PRs. The exceptions are the root commit, and an identifier
+  claim when parallel branches are cut from `main` (see the amendment).
 - If the project ever gains deployed environments, re-adding `develop` and a release guard is
   additive.
 
@@ -68,21 +68,33 @@ not exist here.
 The developer prefers to open PRs later rather than block on them ("We can PR later no?").
 Planning review round 1 also showed that a review verdict needs a durable place to live.
 
-- **Stacked branches.** A block branches from `main` when everything it depends on has merged.
-  Otherwise it branches from the newest dependency branch whose latest review passed. The
+- **Stacked branches.** A block starts when every block it depends on is **Closed** (review passed,
+  docs final) and its base branch's latest review passed. For block 001, the base is the planning
+  baseline, so block 001 waits for the baseline's review. A block branches from `main` when
+  everything it depends on has merged, and otherwise from the newest dependency branch. The
   planning baseline is the bottom of the stack.
-- **Deferred PRs.** PRs are opened later, in stack order, and merged one by one with merge
-  commits. Each PR's base is `main` by the time it merges. If an earlier branch changes, it is
-  merged forward into the branches above it, never rebased.
+- **Closed branches are frozen.** Nothing is merged into a Closed branch, and nothing is merged
+  forward. A problem found after a block closed is fixed forward, on top of the stack: in the block
+  in progress, or on a `fix/BUG-nnn` branch cut from the newest Closed branch. So a fix never forces
+  a re-review of the branches above it.
+- **Deferred PRs.** PRs are opened later, one at a time in stack order, starting with the planning
+  baseline. Each is opened against `main` once the PR below it has merged, so its diff shows only
+  its own commits, and is merged with a merge commit.
+- **Branches are kept** after merging, so "merged" stays checkable in git: a branch has merged when
+  its tip is an ancestor of `origin/main`. No docs table records it, so merging needs no
+  bookkeeping commit.
 - **Recorded reviews.** Every review round is committed verbatim in `docs/reviews/`, with the
-  commit it reviewed. A branch may merge only when its latest review is PASS or PASS WITH NOTES
-  and every later commit is bookkeeping only (see below). This replaces "PASS on the latest
-  commit", which could not hold once closing commits were added.
+  commit it reviewed. A branch may merge only when its latest review is PASS or PASS WITH NOTES and
+  every later commit is bookkeeping only. This replaces "PASS on the latest commit", which could
+  not hold once closing commits were added.
+- **Bookkeeping is narrow**, and defined once, in the
+  [delivery-blocks rule](../../.claude/rules/delivery-blocks.md#merge-gate): review records,
+  completion logs, status lines and criteria checkboxes, the §9 evidence column, additions to the
+  tech-debt register, `CHANGELOG.md`, and the `version` fields that `npm version` changes. Any
+  other change, including any other docs change, needs a new review round. On the planning
+  baseline, the docs are the deliverable, so this matters most there.
 - **CI on every pushed branch**, not only on PRs, so each block is checked before its PR exists.
 - **Releases** are tagged when the milestone block merges into `main`. GitHub Releases are created
   only for `v1.0.0`; earlier milestones are tags and CHANGELOG entries.
-- **"Closed"** means review passed and docs finalized. Whether a block has merged lives in git (its
-  branch is an ancestor of `origin/main`), not in a docs table, so merging needs no bookkeeping
-  commits.
-- **The merge gate allows bookkeeping after a review:** files under `docs/`, `CHANGELOG.md`, and
-  the `version` fields that `npm version` changes. Any other change needs a new review round.
+- **Identifier claims** are committed to the branch the parallel branches will be cut from, before
+  cutting them, so every branch that uses a claim contains it.

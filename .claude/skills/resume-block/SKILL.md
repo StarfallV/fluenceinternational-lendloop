@@ -6,9 +6,23 @@ allowed-tools:
   - Read
   - Write
   - Edit
-  - Bash
   - Glob
   - Grep
+  - Bash(git fetch *)
+  - Bash(git status *)
+  - Bash(git diff *)
+  - Bash(git log *)
+  - Bash(git show *)
+  - Bash(git ls-tree *)
+  - Bash(git branch *)
+  - Bash(git merge-base *)
+  - Bash(git rev-parse *)
+  - Bash(git switch *)
+  - Bash(git add *)
+  - Bash(git commit *)
+  - Bash(git push -u origin HEAD)
+  - Bash(npm run *)
+  - Bash(npm test *)
 ---
 
 Resume delivery block `$ARGUMENTS`. Don't start implementing straight away; assess the current
@@ -26,8 +40,9 @@ state first.
    - the partial completion log, `docs/logs/$ARGUMENTS-completion.md`;
    - the review records, `docs/reviews/$ARGUMENTS-review-*.md`.
 5. Check `docs/tech-debt.md` for items that reference this block.
-6. Work out the base branch the same way `/run-block` does. If a lower branch in the stack gained
-   commits since this branch was cut, merge it in now (`git merge <base>`), never rebase.
+6. Work out the base branch the same way `/run-block` does. Closed branches never change, so there
+   is nothing to merge in. If the base did gain non-bookkeeping commits, stop and tell the
+   developer: that breaks the fix-forward rule.
 
 ## Step 2 — Assess
 

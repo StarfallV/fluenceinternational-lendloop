@@ -10,8 +10,9 @@ spec (Planned) → /run-block (In progress) → completion log (In review) → /
 ```
 
 Branches stack while PRs are deferred ([ADR-009 amendment](../adr/ADR-009-repository-workflow.md)):
-the planning baseline is at the bottom, and each block branches from the one it depends on.
-Whether a block has merged lives in git: its branch is an ancestor of `origin/main`.
+the planning baseline is at the bottom, and each block branches from the one it depends on. A
+Closed branch never changes again; fixes go forward. Whether a block has merged lives in git:
+branches are kept after merging, and a merged branch is an ancestor of `origin/main`.
 
 | Block | Module | Title | Depends on | Status | Release |
 | --- | --- | --- | --- | --- | --- |

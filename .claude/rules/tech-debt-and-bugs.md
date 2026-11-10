@@ -33,8 +33,14 @@ when:
 
 1. **Document it** with `/report-bug`. It creates `docs/bugs/BUG-nnn-<slug>.md` with the
    severity, symptom, root cause and fix approach.
-2. **Fix it** on `fix/BUG-nnn-<slug>`, with commits like `fix: … (BUG-nnn)`. Add a test that fails
-   before the fix and passes after.
+2. **Fix it forward,** on top of the stack, never on a Closed branch
+   ([commit-conventions](commit-conventions.md#branches)):
+   - while a block is in progress, as separate `fix: … (BUG-nnn)` commits on that block's branch,
+     which the block's review covers;
+   - with no block in progress, on `fix/BUG-nnn-<slug>`, cut from the newest Closed branch (or
+     from `origin/main` once everything has merged), and reviewed and closed like a block.
+
+   Add a test that fails before the fix and passes after.
 3. **Log it** in `docs/logs/BUG-nnn-completion.md`: root cause, fix, tests, decisions.
 4. If the bug reveals a deeper issue, add a tech-debt item that cites `BUG-nnn`.
 

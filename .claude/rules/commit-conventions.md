@@ -2,36 +2,41 @@
 
 ## Branches
 
-- `main` is the trunk. It changes only through merged PRs. The two exceptions are the root
-  commit and identifier claims ([ADR-009](../../docs/adr/ADR-009-repository-workflow.md)).
+- `main` is the trunk. It changes only through merged PRs. The exceptions are the root commit, and
+  an identifier claim when parallel branches are cut from `main`
+  ([ADR-009](../../docs/adr/ADR-009-repository-workflow.md)).
 - **Branch names:**
   - `feature/NNN-<slug>` for a delivery block, using the exact name in the spec's **Branch**
     line;
   - `fix/BUG-nnn-<slug>` for a bug fix;
   - `docs/<slug>` or `chore/<slug>` for work outside a block.
-- **Base branch.** Branches stack while PRs are deferred (ADR-009 amendment):
-  - if everything the block depends on has merged into `main`, branch from the latest
-    `origin/main`;
-  - otherwise, branch from the newest dependency branch whose latest review passed. The planning
-    baseline, `docs/planning-baseline`, is the bottom of the stack.
-- If a lower branch gains commits after a higher branch was cut, **merge** the lower branch into
-  the higher one. Never rebase a pushed branch.
+- **Base branch.** Branches stack while PRs are deferred (ADR-009 amendment). A block starts only
+  when every dependency is **Closed** and its base branch's latest review passed
+  ([delivery-blocks rule](delivery-blocks.md#lifecycle)). Then:
+  - if everything the block depends on has merged into `main`, the base is `main`;
+  - otherwise, the base is the newest dependency's branch. The planning baseline,
+    `docs/planning-baseline`, is the bottom of the stack.
+
+  Create the branch straight from the remote base: `git fetch origin`, then
+  `git switch -c <branch> origin/<base>`.
+- **Closed branches are frozen.** Never merge into, commit to, or rebase a Closed branch. Fixes go
+  forward, on top of the stack ([tech-debt-and-bugs rule](tech-debt-and-bugs.md#bugs)). Never
+  rebase any pushed branch.
 - Push with an explicit upstream: `git push -u origin HEAD`.
 
 ## Pull requests
 
 - PRs are opened when the developer is ready, **not** as a gate for starting the next block. Open
-  them in stack order, one per branch:
+  them one at a time, in stack order, starting with `docs/planning-baseline`. Open each against
+  `main` once the PR below it has merged, so its diff shows only its own commits:
   - title: `[NNN] <Block title>`;
   - body: from `.github/pull_request_template.md`, linking the block's review records in
     `docs/reviews/` and its completion log.
-- **Merge gate:**
-  - the latest review record is PASS or PASS WITH NOTES;
-  - every commit after the reviewed commit is bookkeeping only: `docs/`, `CHANGELOG.md`, and the
-    `version` fields changed by `npm version`;
-  - CI is green.
-- Merge with a **merge commit**: `gh pr merge <n> --merge --delete-branch`. The next PR in the
-  stack then targets `main`.
+- **Merge gate:** defined once, in the [delivery-blocks rule](delivery-blocks.md#merge-gate):
+  latest review PASS or PASS WITH NOTES, only bookkeeping since, CI green.
+- Merge with a **merge commit**, and keep the branch: `gh pr merge <n> --merge`, without
+  `--delete-branch`. Keep GitHub's "automatically delete head branches" setting off. A branch has
+  merged when `git merge-base --is-ancestor origin/<branch> origin/main` succeeds.
 
 ## Commit messages
 
