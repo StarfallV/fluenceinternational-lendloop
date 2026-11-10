@@ -10,7 +10,8 @@
 
 ## Merge gate
 
-See the [delivery-blocks rule](../.claude/rules/delivery-blocks.md#merge-gate).
+See the
+[delivery-blocks rule](https://github.com/StarfallV/fluenceinternational-lendloop/blob/main/.claude/rules/delivery-blocks.md#merge-gate).
 
 - [ ] The latest review record is PASS or PASS WITH NOTES.
 - [ ] Every commit after the reviewed commit is bookkeeping only.

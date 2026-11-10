@@ -67,3 +67,7 @@ Print the bug ID, title, severity and file path. Then say where the fix goes, pe
 tech-debt-and-bugs rule: in the block in progress, or else in the next block; after block 012, in
 a fix block of its own (a spec with Branch `fix/BUG-nnn-<slug>`). Never on a Closed branch. The
 next steps are: fix, test, then the completion log of the block that carries the fix.
+
+Commit the report on the branch of the block in progress. With no block in progress, leave it
+uncommitted: the `docs: start block NNN` commit of the block that carries the fix adds it
+(run-block).

@@ -57,7 +57,9 @@ Run these checks in order. If one fails, stop and report it.
    variables, missing logins), ask the developer to do them, and say exactly what you need. Check
    variables only through scripts that report "set" or "missing", never by printing values.
 8. **Start.** Set the spec to `Status: In progress`, and update the table in
-   `docs/blocks/README.md`. Commit: `docs: start block $ARGUMENTS`.
+   `docs/blocks/README.md`. Commit: `docs: start block $ARGUMENTS`. This commit also adds any bug
+   report waiting for this block and, for a fix block, its spec and index rows. They were left
+   uncommitted (report-bug, create-blocks), and `git switch -c` carried them onto the new branch.
 
 ## Step 1 — Settle verification items
 

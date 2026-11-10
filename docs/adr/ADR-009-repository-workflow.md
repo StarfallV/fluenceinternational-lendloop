@@ -96,7 +96,8 @@ Planning review round 1 also showed that a review verdict needs a durable place 
 - **Bookkeeping is narrow**, and defined once, in the
   [delivery-blocks rule](../../.claude/rules/delivery-blocks.md#merge-gate): review records,
   completion logs, status lines and criteria checkboxes, the §9 evidence column, additions to the
-  tech-debt register, `CHANGELOG.md`, and the `version` fields that `npm version` changes. Any
+  tech-debt register, new bug reports and their status lines, `CHANGELOG.md`, and the `version`
+  fields that `npm version` changes. Any
   other change, including any other docs change, needs a new review round. On the planning
   baseline, the docs are the deliverable, so this matters most there.
 - **CI on every pushed branch**, not only on PRs, so each block is checked before its PR exists.
