@@ -2,9 +2,9 @@
 
 **Status:** v1.4 (2026-11-11): §5's agent guardrails rewritten in block 001 (TD-009) and
 revised after its review rounds [1](reviews/001-review-1.md), [2](reviews/001-review-2.md),
-[3](reviews/001-review-3.md) and [4](reviews/001-review-4.md). Baseline v1.3 (2026-11-10, revised after planning review
-[rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md)
-and [3](reviews/planning-baseline-review-3.md)).
+[3](reviews/001-review-3.md) and [4](reviews/001-review-4.md). Baseline v1.3 (2026-11-10,
+revised after planning review [rounds 1](reviews/planning-baseline-review-1.md),
+[2](reviews/planning-baseline-review-2.md) and [3](reviews/planning-baseline-review-3.md)).
 **Scope:** What we protect, from whom, with which controls, and which personal data goes where.
 The mechanisms are specified in [architecture.md](architecture.md). This document explains why
 they exist.
