@@ -31,8 +31,7 @@ Don't commit it yet.
 
 ## Step 3 — Write the report
 
-Take the next free `BUG-` number. Claim it first in `docs/id-registry.md` if branches run in
-parallel. Write `docs/bugs/BUG-nnn-<slug>.md`:
+Take the next free `BUG-` number. Write `docs/bugs/BUG-nnn-<slug>.md`:
 
 ```markdown
 # BUG-nnn: <short description>
@@ -64,8 +63,9 @@ The suspected or confirmed cause, with file and function references.
 ## Step 4 — Report
 
 Print the bug ID, title, severity and file path. Then say where the fix goes, per the
-tech-debt-and-bugs rule: in the block in progress, or else in the next block; after block 012, in
-a fix block of its own (a spec with Branch `fix/BUG-nnn-<slug>`). Never on a Closed branch. The
+tech-debt-and-bugs rule: in the block in progress, or else in the next block; after the last
+planned block, in a fix block of its own (a spec with Branch `fix/BUG-nnn-<slug>`). Never on a
+Closed branch. The
 next steps are: fix, test, then the completion log of the block that carries the fix.
 
 Commit the report on the branch of the block in progress. With no block in progress, write it

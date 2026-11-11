@@ -102,5 +102,3 @@ AUT-2, REL-1, REL-2 (heartbeat), BR-20, BR-21, SEC-3, SEC-5, DEL-2.
     health still show the run.
 - Mailpit's allowed-recipients option, for the containment check, in the pinned version.
 - Duplicate emails remain possible only in the cases listed in TD-006.
-
-**Release:** `v0.3.0`, tagged when this block merges into `main`.

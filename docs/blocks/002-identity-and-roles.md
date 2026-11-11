@@ -101,5 +101,3 @@ PUB-3, SEC-1 (foundation), BR-16 (display names), BR-18.
 2. Run `npx convex dev` once to log in and create the dev deployment.
 3. Set `CLERK_JWT_ISSUER_DOMAIN` in the Convex env. The README's development section gives the
    exact command.
-
-**Release:** `v0.1.0`, tagged when this block merges into `main`.

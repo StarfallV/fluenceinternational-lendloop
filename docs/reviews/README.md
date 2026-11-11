@@ -21,7 +21,8 @@ completion log under "Review items addressed". For the planning baseline, the an
 appended to the review record under "Author response".
 
 **Merge gate:** a branch may merge only when its latest review has verdict PASS or PASS WITH
-NOTES, and every commit after the reviewed commit is bookkeeping only. The gate and the exact
-list of bookkeeping changes are defined once, in the
-[delivery-blocks rule](../../.claude/rules/delivery-blocks.md#merge-gate). Anything else needs
-another review round.
+NOTES, and every commit after the reviewed commit is bookkeeping or a fix for one of that
+review's notes. One review per block is the norm: after a passing review, its notes are fixed or
+recorded as tech debt without another round. The gate, the review policy and the exact list of
+bookkeeping changes are defined once, in the
+[delivery-blocks rule](../../.claude/rules/delivery-blocks.md#merge-gate).

@@ -15,7 +15,7 @@ options, constrains future work, or goes against the expected approach
 | [ADR-006](ADR-006-failure-visibility.md) | Failure visibility: dead letters, an error workflow, and a heartbeat | Accepted (revised) |
 | [ADR-007](ADR-007-email-via-smtp-mailpit-locally.md) | Email over SMTP, caught locally by Mailpit | Accepted |
 | [ADR-008](ADR-008-calendar-dates-in-one-app-timezone.md) | Loan dates are calendar dates in one app timezone; queries read a shared clock | Accepted (revised) |
-| [ADR-009](ADR-009-repository-workflow.md) | Repository workflow: delivery blocks on a single trunk, SemVer tags; stacked branches and deferred PRs | Accepted (amended) |
+| [ADR-009](ADR-009-repository-workflow.md) | Repository workflow: delivery blocks on a single trunk; stacked branches, deferred PRs, one review per block, one release | Accepted (amended) |
 
 ## Template
 

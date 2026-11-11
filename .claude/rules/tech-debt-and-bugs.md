@@ -36,7 +36,7 @@ when:
 2. **Fix it in the block in progress,** as separate `fix: … (BUG-nnn)` commits that the block's
    review covers. Never on a Closed branch ([commit-conventions](commit-conventions.md#branches)).
    - With no block in progress, the fix goes into the next block.
-   - After the last planned block (012), a fix becomes a block of its own (013, …), with a spec
+   - After the last planned block, a fix becomes a block of its own (the next number), with a spec
      whose Branch line is `fix/BUG-nnn-<slug>`, run with `/run-block` like any other.
 
    Add a test that fails before the fix and passes after.
@@ -55,7 +55,5 @@ when:
 
 - `TD-`, `BUG-` and `ADR-` numbers are sequential across the whole project. Never restart, reuse
   or renumber them.
-- Blocks run one at a time, so take the next number. Claims in
-  [docs/id-registry.md](../../docs/id-registry.md) are needed only once work continues from `main`
-  with parallel branches.
+- Blocks run one at a time, so take the next number.
 - `npm run check:ids` fails CI on any duplicate.

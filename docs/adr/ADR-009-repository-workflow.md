@@ -1,6 +1,7 @@
 # ADR-009 — Repository workflow: delivery blocks on a single trunk, SemVer tags
 
-**Status:** Accepted (amended 2026-11-10, and the amendment revised after planning review rounds 2 and 3)
+**Status:** Accepted (amended 2026-11-10, revised after planning review rounds 2 and 3; amended again
+2026-11-11)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -46,8 +47,8 @@ This project has one developer, no deployed environments, and a reviewer reading
 | Decision records | ADRs only, in `docs/adr/`. Requirements-stage decisions are ADRs too. |
 | Tech-debt register, resolved in place | Kept: `docs/tech-debt.md` |
 | Branching | `main`, plus `feature/NNN-slug` per block, merged by PR with merge commits. No `develop`. |
-| Releases | `CHANGELOG.md` and annotated SemVer tags (`v0.1.0` after 002, `v0.2.0` after 005, `v0.3.0` after 009, `v1.0.0` at submission). No release guard. |
-| Identifier claims | Block numbers are fixed at planning. TD, BUG and ADR numbers are claimed in `docs/id-registry.md` only when two branches are open at once. A duplicate-ID check runs in CI. |
+| Releases | `CHANGELOG.md` and one annotated SemVer tag, `v1.0.0`, at submission (2026-11-11 amendment). No release guard. |
+| Identifiers | Blocks run one at a time, so TD, BUG and ADR numbers are the next free number; no claim registry (2026-11-11 amendment). A duplicate-ID check runs in CI. |
 | Commits | Conventional commits citing the block, several green commits per block, the completion log last |
 
 ## Rationale
@@ -58,8 +59,7 @@ not exist here.
 
 ## Consequences
 
-- `main` only changes through merged PRs. The exceptions are the root commit, and identifier
-  claims once work continues from `main` with parallel branches (see the amendment).
+- `main` only changes through merged PRs. The only exception is the root commit.
 - If the project ever gains deployed environments, re-adding `develop` and a release guard is
   additive.
 
@@ -74,7 +74,7 @@ Planning review round 1 also showed that a review verdict needs a durable place 
   the base.
 - **A block starts when its base is Closed:**
   - the latest review passed;
-  - its notes are handled, either fixed through another round or recorded as tech debt;
+  - its notes are handled: fixed, or recorded as tech debt (2026-11-11 amendment);
   - the closing bookkeeping is committed.
 
   The planning baseline has a status row in `docs/blocks/README.md` like a block, and block 001
@@ -103,6 +103,23 @@ Planning review round 1 also showed that a review verdict needs a durable place 
 - **CI on every pushed branch**, not only on PRs, so each block is checked before its PR exists.
   The planning baseline predates CI, so its PR merges without it.
 - **Releases** are tagged when the milestone block merges into `main`. GitHub Releases are created
-  only for `v1.0.0`; earlier milestones are tags and CHANGELOG entries.
-- **Identifier claims** aren't needed while blocks run one at a time. Once work continues from
-  `main` with parallel branches, claims are committed to `main` before the branches are cut.
+  only for `v1.0.0`; earlier milestones are tags and CHANGELOG entries. (Superseded on
+  2026-11-11: one release only.)
+- **Identifier claims** aren't needed while blocks run one at a time. (The registry was dropped on
+  2026-11-11.)
+
+## Amendment — 2026-11-11: one review per block, one release
+
+Block 001 needed four review rounds. Each came back PASS WITH NOTES, but every fix counted as a
+non-bookkeeping change, so each forced another round, and most notes only widened a best-effort
+tool (the secret guard). The developer judged the process over-engineered for the task and
+simplified it:
+
+- **One review per block** is the norm. After PASS or PASS WITH NOTES, each note is fixed on the
+  branch or recorded as tech debt, without another round. NEEDS WORK still means a new round.
+- **Merge gate:** after the reviewed commit, only bookkeeping and fixes for that review's notes
+  (listed in the completion log). This replaces "bookkeeping only" in the amendment above.
+- **One release,** `v1.0.0`, at submission. The intermediate milestone tags are dropped.
+- **No identifier registry.** Blocks run one at a time, so a claim is never needed.
+- **Re-plan:** the remaining blocks are re-planned at the start of block 002, as fewer, larger
+  blocks with a simpler design where the brief allows it.

@@ -2,9 +2,8 @@
 
 ## Branches
 
-- `main` is the trunk. It changes only through merged PRs. The exceptions are the root commit, and
-  identifier claims once work continues from `main` with parallel branches
-  ([ADR-009](../../docs/adr/ADR-009-repository-workflow.md)).
+- `main` is the trunk. It changes only through merged PRs; the only exception is the root
+  commit ([ADR-009](../../docs/adr/ADR-009-repository-workflow.md)).
 - **Branch names:** the exact name in the spec's **Branch** line: `feature/NNN-<slug>` for a
   block, or `fix/BUG-nnn-<slug>` for a fix block after the last planned one. `docs/<slug>` or
   `chore/<slug>` for work outside a block.
@@ -66,18 +65,16 @@ Use conventional commits: `<type>: <what changed> (block NNN)`.
 
 ## Releases
 
-Versions follow SemVer. The milestones are `v0.1.0` (block 002), `v0.2.0` (block 005), `v0.3.0`
-(block 009) and `v1.0.0` (block 012).
+Versions follow SemVer. There is one release, `v1.0.0`, in the last planned block. Until then,
+`CHANGELOG.md` collects entries under `Unreleased`.
 
-1. **In the milestone block's closing commits:**
-   - move the `Unreleased` entries in `CHANGELOG.md` under `## [x.y.z] — YYYY-MM-DD`;
-   - run `npm version x.y.z --no-git-tag-version`, which updates `package.json` and
+1. **In the last block's closing commits:**
+   - move the `Unreleased` entries in `CHANGELOG.md` under `## [1.0.0] — YYYY-MM-DD`;
+   - run `npm version 1.0.0 --no-git-tag-version`, which updates `package.json` and
      `package-lock.json`;
-   - commit as `chore: release vX.Y.Z`.
-2. **When that block's PR merges,** tag the merge commit on `main` with an annotated tag:
-   `git tag -a vX.Y.Z -m "vX.Y.Z"`, then `git push origin vX.Y.Z`.
-3. **Only for `v1.0.0`:** create a GitHub Release with
-   `gh release create v1.0.0 --title "v1.0.0" --notes "<CHANGELOG section>"`. Earlier milestones
-   are tags and CHANGELOG entries only.
+   - commit as `chore: release v1.0.0`.
+2. **When that block's PR merges,** tag the merge commit on `main` with an annotated tag
+   (`git tag -a v1.0.0 -m "v1.0.0"`, then `git push origin v1.0.0`), and create a GitHub Release
+   with `gh release create v1.0.0 --title "v1.0.0" --notes "<CHANGELOG section>"`.
 
 Never move or delete a published tag. If a release is wrong, supersede it with a new version.

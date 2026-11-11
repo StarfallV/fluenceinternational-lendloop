@@ -19,7 +19,6 @@ Read these first, in this order:
 | [docs/reviews/](docs/reviews/) | Independent review records, which gate every merge |
 | [docs/logs/](docs/logs/) | Completion logs |
 | [docs/tech-debt.md](docs/tech-debt.md) | Deferred work. Scan it before starting a block. |
-| [docs/id-registry.md](docs/id-registry.md) | Identifier claims, needed only for parallel branches |
 
 ## Stack at a glance
 
@@ -105,7 +104,7 @@ src/
 infra/Caddyfile     edge proxy allowlist
 n8n/workflows/      exported, sanitized workflow JSON (stable IDs)
 scripts/            setup, tunnel sync, admin grant, seed, n8n import/export/check, ID check, smoke tests
-docs/               prd, architecture, security, production (block 012), tech-debt, id-registry,
+docs/               prd, architecture, security, production (block 012), tech-debt,
                     adr/, blocks/, reviews/, logs/, runbooks/, bugs/
 (gitignored)        .env, .env.local, .env.n8n, .secrets/
 ```
@@ -139,10 +138,10 @@ docs/               prd, architecture, security, production (block 012), tech-de
   those files, but the rule applies everywhere.
 - Import the raw `query`, `mutation` or `action` builders outside `convex/lib/functions.ts`.
 - Call `Date.now()` in a Convex query. Read the clock.
-- Commit to `main` directly. The only exception is an identifier claim, once work continues from
-  `main` with parallel branches ([ADR-009](docs/adr/ADR-009-repository-workflow.md)).
-- Merge a branch whose latest review isn't PASS or PASS WITH NOTES, or that has non-bookkeeping
-  commits after the review ([merge gate](.claude/rules/delivery-blocks.md#merge-gate)).
+- Commit to `main` directly ([ADR-009](docs/adr/ADR-009-repository-workflow.md)).
+- Merge a branch whose latest review isn't PASS or PASS WITH NOTES, or that has commits after the
+  review other than bookkeeping and fixes for its notes
+  ([merge gate](.claude/rules/delivery-blocks.md#merge-gate)).
 - Commit to, or merge into, a Closed branch.
 - Commit the original assignment brief. [docs/prd.md](docs/prd.md) restates the requirements.
 

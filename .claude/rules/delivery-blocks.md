@@ -10,15 +10,15 @@ LendLoop is built in numbered delivery blocks ([docs/blocks/](../../docs/blocks/
 | Plan | `/create-blocks` | Spec in `docs/blocks/`, with `Status: Planned` |
 | Execute | `/run-block NNN` | Branch (from the previous block's branch, or `main`), commits, and a completion log committed together with `Status: In review` |
 | Review | `/review-block NNN` | A fresh, read-only `block-reviewer` agent reports PASS, PASS WITH NOTES or NEEDS WORK. The main session records the report in `docs/reviews/NNN-review-<round>.md`, with the reviewed commit. |
-| Close | `/close-block NNN` | Review notes handled (any code fix means a new review round), closing commit, `Status: Closed` |
-| Merge | When the developer opens PRs | One PR per branch in stack order, merge commits, a tag at each milestone |
+| Close | `/close-block NNN` | Review notes handled (fixed, or recorded as tech debt), closing commit, `Status: Closed` |
+| Merge | When the developer opens PRs | One PR per branch in stack order, merge commits, and the `v1.0.0` tag after the last block |
 
 - **One block at a time, in number order.** Block NNN branches from block NNN−1's branch, and
   block 001 from the planning baseline. Once that branch has merged, the block branches from
   `main` instead. The dependency graph is linear, so every dependency is in the base.
 - **A block starts** when its base is **Closed**. Closed means:
   - the latest review passed;
-  - its notes are handled, either fixed through another review round or recorded as tech debt;
+  - its notes are handled: fixed, or recorded as tech debt;
   - the closing bookkeeping is committed.
 
   The planning baseline counts as a block here. Its status is the first row of
@@ -26,14 +26,23 @@ LendLoop is built in numbered delivery blocks ([docs/blocks/](../../docs/blocks/
   branches stack.
 - **Closed branches are frozen.** No commit lands on a Closed branch, and nothing is merged into
   one. A problem found later is fixed in the block in progress (tech-debt-and-bugs rule).
-- **NEEDS WORK:** fix on the same branch, update the completion log, and run `/review-block` again.
-  That is the next round, with a new record.
+## Review policy
+
+Keep it proportionate: **one review per block** is the norm.
+- **PASS or PASS WITH NOTES:** handle each note once, by fixing it on the branch or recording it
+  as tech debt, and list the outcome in the completion log. Fixes for a passing review's notes
+  don't need another round.
+- **Minor notes** that would take real work, or that only widen best-effort tooling (such as the
+  secret guard), go to tech debt rather than into the block.
+- **NEEDS WORK:** fix on the same branch, update the completion log, and run `/review-block`
+  again. That is the next round, with a new record.
 
 ## Merge gate
 
 A branch may merge only when all of these hold:
 - its latest review record says PASS or PASS WITH NOTES;
-- every commit after the reviewed commit is **bookkeeping** only (below);
+- every commit after the reviewed commit is **bookkeeping** (below), or a fix for a note of that
+  review, listed in the completion log under "Review items addressed";
 - CI is green. The planning baseline is exempt, because CI arrives in block 001.
 
 **Bookkeeping** is exactly this list:
@@ -47,8 +56,8 @@ A branch may merge only when all of these hold:
 - `CHANGELOG.md`;
 - the `version` fields that `npm version` changes in `package.json` and `package-lock.json`.
 
-Any other change after the review, including any other edit under `docs/`, needs another review
-round. This is the only definition of the gate; other documents link here.
+Any other change after the review needs another review round. This is the only definition of
+the gate; other documents link here.
 
 ## When the spec is wrong
 

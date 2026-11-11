@@ -57,5 +57,3 @@ ADM-1 – ADM-3, BR-14, BR-17, BR-20 (long-overdue flag), SEC-1, SEC-5 (no email
 ## Known Constraints
 `remindersSent` only starts increasing in block 009. Until then, the long-overdue flag is tested
 with seeded values.
-
-**Release:** `v0.2.0`, tagged when this block merges into `main`.
