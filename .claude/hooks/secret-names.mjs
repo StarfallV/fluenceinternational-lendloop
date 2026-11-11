@@ -25,6 +25,11 @@ const DOCKER_SUBCOMMANDS = new Set(["exec", "run", "cp", "inspect"]);
 // `env`, `printenv` and `/proc/<pid>/environ` by name or path, and the shell's own listings.
 const ENVIRONMENT_DUMPS = new Set(["env", "printenv", "environ", "declare", "typeset"]);
 
+/** A word's program name: its last path segment, without `.exe` (`/usr/bin/docker.exe`). */
+function programName(word) {
+  return word.slice(word.lastIndexOf("/") + 1).replace(/\.exe$/, "");
+}
+
 /** The command's words, lowercased, each with the separator that follows it. */
 function wordsOf(command) {
   const parts = command.split(WORD_BREAK);
@@ -37,9 +42,9 @@ function wordsOf(command) {
 
 /**
  * The subcommands (`exec`, `run`, `cp`, `inspect`) that `docker`, `docker-compose` or
- * `docker compose` runs, with any options before the subcommand (`-f compose.yml`,
- * `-p lendloop`, `--context x`). Walks right to left, keeping the subcommand words seen since the
- * last separator.
+ * `docker compose` runs, by name or by path, with any options before the subcommand
+ * (`-f compose.yml`, `-p lendloop`, `--context x`). Walks right to left, keeping the subcommand
+ * words seen since the last separator.
  */
 function dockerSubcommands(words) {
   const found = new Set();
@@ -47,7 +52,8 @@ function dockerSubcommands(words) {
   for (let i = words.length - 1; i >= 0; i--) {
     const { word, after } = words[i];
     if (COMMAND_SEPARATOR.test(after)) pending = new Set();
-    if (word === "docker" || word === "docker-compose") {
+    const name = programName(word);
+    if (name === "docker" || name === "docker-compose") {
       for (const subcommand of pending) found.add(subcommand);
     } else if (DOCKER_SUBCOMMANDS.has(word)) {
       pending.add(word);
@@ -59,7 +65,7 @@ function dockerSubcommands(words) {
 /** Whether any word dumps the environment: `env`, `printenv`, a bare `set` or `export`, … */
 function dumpsEnvironment(words) {
   return words.some(({ word, after }, i) => {
-    const name = word.slice(word.lastIndexOf("/") + 1);
+    const name = programName(word);
     if (ENVIRONMENT_DUMPS.has(name)) return true;
     if (name !== "set" && name !== "export") return false;
     const next = words[i + 1];
@@ -83,7 +89,9 @@ function containerLeak(command) {
     return "`docker inspect` prints a container's environment, which holds secrets";
   }
   const runs = subcommands.has("exec") || subcommands.has("run");
-  if (runs && dumpsEnvironment(words)) {
+  const text = command.toLowerCase();
+  // `environ` inside a word too: Python's `os.environ`.
+  if (runs && (dumpsEnvironment(words) || /\benviron\b/.test(text))) {
     return "the command dumps a container's environment, which holds secrets";
   }
   if (!runs && !subcommands.has("cp")) return null;
@@ -91,7 +99,6 @@ function containerLeak(command) {
   // covers `$N8N_ENCRYPTION_KEY_FILE`, the key file's path), `process.env`, and n8n's
   // ~/.n8n/config, which holds the key (by any path that mentions both, or copied out with
   // `.n8n` itself).
-  const text = command.toLowerCase();
   const n8nConfig = text.includes(".n8n") && (text.includes("config") || subcommands.has("cp"));
   if (
     text.includes("signing_secret") ||
@@ -124,6 +131,29 @@ function runsWith(command, { programs, flag, separators = /[|;&]/ }) {
   });
 }
 
+/**
+ * Whether a whitespace-separated token of `rest` (with the token after it) passes `matches`.
+ * Flags are tested token by token with anchored patterns, which stay linear even on one very
+ * long flag cluster.
+ */
+function hasToken(rest, matches) {
+  const tokens = rest.split(/\s+/);
+  return tokens.some((token, i) => matches(token, tokens[i + 1] ?? ""));
+}
+
+// A short-flag cluster holding the letter, before any argument attached to it, in either case
+// unless stated: `-rnC3` is `-r -n -C 3`.
+const GREP_RECURSIVE = (token, next) =>
+  /^-[a-z0-9]*r/i.test(token) ||
+  /^--(?:rec|der)/i.test(token) ||
+  /^--di\w*=rec/i.test(token) ||
+  (/^(?:--di\w*|-[a-z0-9]*d)$/i.test(token) && /^rec/i.test(next));
+// Case-sensitive: a lowercase `u` disables the ignore rules, while `-U` is multiline mode.
+const RG_UNRESTRICTED = (token) =>
+  /^-[A-Za-z0-9]*u/.test(token) || /^--(?:unrestricted|no-ignore)/.test(token);
+// findstr takes `/` or `-` switches, which combine (`/si`, `/s/i`, `-s`).
+const FINDSTR_RECURSIVE = (token) => /^[/-][a-z/]*s/i.test(token);
+
 const PS_READER = /\b(?:Select-String|sls|Get-Content|gc|cat|type)\b/i;
 const PS_LISTING = /\b(?:Get-ChildItem|gci|ls|dir)\b/i;
 // Get-ChildItem's `-Recurse` in any abbreviation (`-r`, `-rec`), or `-Depth`.
@@ -151,7 +181,10 @@ const LEAKY_COMMANDS = [
     // `convert` is Compose v2's alias of `config`.
     test: (command) =>
       runsWith(command, {
-        programs: [/\bdocker(?:-compose|\s+compose)\b/i, /\s(?:config|convert)\b/i],
+        programs: [
+          /\bdocker(?:\.exe)?(?:-compose(?:\.exe)?|\s+compose)\b/i,
+          /\s(?:config|convert)\b/i,
+        ],
         flag: (rest) => !rest.includes("--no-env-resolution"),
       }),
     reason: "`docker compose config` prints the resolved env files; add --no-env-resolution",
@@ -169,18 +202,13 @@ const LEAKY_COMMANDS = [
       /\brgrep\b/i.test(command) ||
       runsWith(command, {
         programs: [/\b[ef]?grep\b/i],
-        flag: /\s(?:-[a-z]*r[a-z]*|--(?:dereference-)?rec\w*|--dir\w*[=\s]+rec\w*|-d\s*rec\w*)(?=\s|$)/i,
+        flag: (rest) => hasToken(rest, GREP_RECURSIVE),
       }),
     reason: "a recursive grep reads the gitignored secret files; use the Grep tool",
   },
   {
-    // Case-sensitive: any lowercase `u` in a short-flag cluster disables the ignore rules, while
-    // `-U` is multiline mode.
     test: (command) =>
-      runsWith(command, {
-        programs: [/\brg\b/],
-        flag: /\s(?:-[A-Za-z]*u[A-Za-z]*|--unrestricted|--no-ignore\S*)(?=\s|$)/,
-      }),
+      runsWith(command, { programs: [/\brg\b/], flag: (rest) => hasToken(rest, RG_UNRESTRICTED) }),
     reason: "ripgrep without its ignore rules reads the secret files; use the Grep tool",
   },
   {
@@ -209,9 +237,11 @@ const LEAKY_COMMANDS = [
     reason: "a recursive PowerShell read reaches the secret files; use the Grep tool",
   },
   {
-    // findstr takes `/` or `-` switches, which combine (`/si`, `/s/i`, `-s`).
     test: (command) =>
-      runsWith(command, { programs: [/\bfindstr\b/i], flag: /\s[/-][a-z/]*s[a-z/]*\b/i }),
+      runsWith(command, {
+        programs: [/\bfindstr\b/i],
+        flag: (rest) => hasToken(rest, FINDSTR_RECURSIVE),
+      }),
     reason: "a recursive findstr reads the secret files; use the Grep tool",
   },
   {

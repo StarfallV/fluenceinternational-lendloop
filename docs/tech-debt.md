@@ -148,8 +148,8 @@ The first items record trade-offs accepted during planning. They feed the produc
     runs. The hook is registered in exec form for Bash, PowerShell and Monitor.
   - **Matching:** names match case-insensitively, and the leaky command shapes are blocked.
   - **File rules:** anchored with `/`, and they cover every env file Next.js loads.
-  - **Tests:** 45 command cases at first, 113 after block 001's review rounds 1 to 3 (77 blocked,
-    36 allowed), plus timing tests, entry-point tests and a test of the registration in
+  - **Tests:** 45 command cases at first, 141 after block 001's review rounds 1 to 4 (99 blocked,
+    42 allowed), plus timing tests, entry-point tests and a test of the registration in
     `settings.json`. Live probes were blocked, Monitor's included.
   - **Docs:** security.md §5 lists the coverage, and block 007's spec has the names-only helper.
 

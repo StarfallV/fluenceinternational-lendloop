@@ -61,17 +61,38 @@ const blocked = [
   "docker inspect lendloop-n8n-1",
   "docker container inspect n8n",
   "docker --context default inspect lendloop-n8n-1",
+  "/usr/bin/docker exec lendloop-n8n-1 env",
+  "docker.exe exec lendloop-n8n-1 env",
+  '"/c/Program Files/Docker/Docker/resources/bin/docker.exe" exec lendloop-n8n-1 env',
+  "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe exec lendloop-n8n-1 env",
+  "docker-compose.exe exec n8n printenv",
+  "/usr/local/bin/docker-compose exec n8n printenv",
+  "docker.exe inspect lendloop-n8n-1",
+  "/usr/bin/docker inspect lendloop-n8n-1",
+  "docker.exe compose exec n8n sh -c 'echo $CONVEX_TO_N8N_SIGNING_SECRET'",
+  "/usr/bin/docker compose exec n8n cat /home/node/.n8n/config",
+  "docker.exe cp lendloop-n8n-1:/home/node/.n8n/config -",
+  "docker.exe compose config",
+  "docker-compose.exe config",
+  'docker compose exec n8n python3 -c "import os; print(os.environ)"',
   "grep -rn SIGNING_SECRET .",
   "grep -R token .",
   "grep --recursive token .",
   "grep --recurs token .",
   "grep --directories=recurse token .",
   "grep -d recurse token .",
+  "grep -nd recurse token .",
+  "grep --dir recurse token .",
+  "grep -rnA2 SIGNING_SECRET .",
+  "grep -rnC3 token .",
+  "grep -rn5 token .",
+  "grep -rm1 token .",
   "rgrep token .",
   "rg -uu SIGNING_SECRET",
   "rg -nuu SIGNING_SECRET",
   "rg --unrestricted --unrestricted token",
   "rg --no-ignore token",
+  "rg -uuA2 token",
   "git grep --no-index token",
   "git grep --untracked --no-exclude-standard token",
   "Get-ChildItem -Recurse | Select-String SIGNING_SECRET",
@@ -81,6 +102,7 @@ const blocked = [
   "findstr /s /i secret *",
   "findstr /si secret *",
   "findstr -s -i secret *",
+  "findstr /s/i secret *",
   "npx convex env list",
   "node node_modules/convex/bin/main.js env get N8N_TO_CONVEX_SIGNING_SECRET",
 ];
@@ -108,6 +130,12 @@ const allowed = [
   "docker compose cp n8n:/tmp/workflows ./n8n/workflows",
   "docker compose images | grep inspect",
   "findstr -i secret notes.txt",
+  'findstr /c:"some text" notes.txt',
+  "grep -A2 token src/app/page.tsx",
+  "grep -nC3 token src/app/page.tsx",
+  "grep -d skip token src",
+  "rg -A2 token src",
+  "rg -nU token src",
   "rg SIGNING_SECRET src",
   "rg --hidden token",
   "rg -U 'multi\\nline' src",
@@ -140,9 +168,9 @@ describe("findSecretAccess", () => {
   });
 
   // Inputs of the maximum length that make backtracking patterns slow. The hook times out after
-  // 10 s, and a timed-out hook lets the command run. Every check is linear, about 15 ms here at
-  // worst; quadratic patterns took 500–700 ms on the repeated-word inputs, which this bound
-  // catches.
+  // 10 s, and a timed-out hook lets the command run. Every check is linear, under 20 ms here on
+  // each input; the quadratic patterns these replaced took 0.5–0.7 s on the repeated words and
+  // 5–13 s on one long flag cluster, which this bound catches.
   const filler = MAX_COMMAND_LENGTH - 100;
   it.each([
     ["minified JSON in a container heredoc", `docker compose exec -T n8n sh <<'X'\n;{"a":[`],
@@ -159,6 +187,10 @@ describe("findSecretAccess", () => {
     ["repeated gci -r words", "gci -r ".repeat(filler / 7)],
     ["repeated findstr words", "findstr /i ".repeat(filler / 11)],
     ["one long flag after grep", `grep ${"-a".repeat(filler / 2)}`],
+    ["one long grep flag cluster", `grep -${"r".repeat(filler)}1`],
+    ["one long rg flag cluster", `rg -${"u".repeat(filler)}1`],
+    ["one long findstr switch", `findstr /${"s".repeat(filler)}_`],
+    ["one long grep --dir option", `grep --di${"r".repeat(filler)}`],
   ])("decides quickly on %s", (_label, prefix) => {
     const command = (prefix + '{"k":"v"},'.repeat(filler)).slice(0, MAX_COMMAND_LENGTH);
 
