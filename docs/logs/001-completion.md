@@ -27,9 +27,10 @@
   build, check:ids), with Node from `.nvmrc` (24). Also a PR template.
 - **Project files:** `package.json` at `0.0.0` with `engines` set to
   `^22.13.0 || ^24.0.0 || >=26.0.0`; `.env.example`; the README's Development section.
-- **Secret guard, hardened (TD-009, then review rounds 1 and 2):**
-  - the matching logic lives in its own module, with 93 command cases and entry-point tests. The
-    hook loads it dynamically, so a matcher that fails to load denies;
+- **Secret guard, hardened (TD-009, then review rounds 1 to 3):**
+  - the matching logic lives in its own module, with 113 command cases, timing tests and entry-point
+    tests. Every check is linear, and commands over 64 KiB are denied unchecked. The hook loads
+    the matcher dynamically, so a matcher that fails to load denies;
   - the hook is registered in exec form for Bash, PowerShell and Monitor, and a test checks that
     registration;
   - it blocks the commands that print secrets without naming a file, including the close
@@ -43,14 +44,14 @@
 ## Acceptance criteria
 | Criterion | Result | Evidence |
 | --- | --- | --- |
-| On a clean clone, `npm ci`, typecheck, lint, format:check, test and build succeed on Windows and in CI | PASS | Manual (Windows): `e4621dd` cloned into a scratch directory, Windows 10, Node 24.20.0. All seven CI steps succeeded. CI (Ubuntu): [run 42889364207](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42889364207) on `e4621dd`, success. After the review round 1 fixes: `e0c9dea` cloned the same way, all seven steps succeeded; CI [run 42896760027](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42896760027) on `e0c9dea`, success. |
+| On a clean clone, `npm ci`, typecheck, lint, format:check, test and build succeed on Windows and in CI | PASS | Manual (Windows): `e4621dd` cloned into a scratch directory, Windows 10, Node 24.20.0. All seven CI steps succeeded. CI (Ubuntu): [run 42889364207](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42889364207) on `e4621dd`, success. After the review round 1 fixes: `e0c9dea` cloned the same way, all seven steps succeeded; CI [run 42896760027](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42896760027) on `e0c9dea`, success. After the review round 3 fixes: `fe512fc` cloned the same way, all seven steps succeeded (168 tests); CI [run 42983358879](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42983358879) on `fe512fc`, success. |
 | `/` shows the name and tagline, and lays out correctly at 360 px and 1280 px | PASS | Manual: the production build served locally, captured with headless Chrome at 1280 × 800 and in a 360 px-wide iframe. A direct 360 px capture is cropped, because the headless window has a minimum width. The name, tagline and description fit, with 16 px gutters and no horizontal overflow. Screenshots: [360 px](assets/001-landing-360.png), [1280 px](assets/001-landing-1280.png). |
 | `check:ids` passes on the repository; a test proves it fails on duplicated TD, ADR or block numbers | PASS | `npm run check:ids` reports "no duplicates (14 TD, 9 ADR, 0 BUG, 12 block)". Tests: `npm run check:ids › exits 1 and names the duplicate for duplicate-td / duplicate-adr / duplicate-bug / duplicate-block`; `… › exits 1 and names an ADR file titled with another number`; `… › exits 1 when the docs define no identifiers`; `… › exits 1 when run from a directory without docs/`; `checkIds › reports … with every location`; `checkIds › passes on this repository's docs`; `checkIds › reports an ADR file whose title names another number`; `checkIds › reports a docs directory that doesn't exist / without tech-debt.md / that defines no identifiers`. |
-| CI runs on this block's pushed branch and is green | PASS | Runs on `a858391`, `e4621dd` and `e0c9dea` all succeeded (latest: run 42896760027). |
+| CI runs on this block's pushed branch and is green | PASS | Runs on `a858391`, `e4621dd`, `e0c9dea`, `9b2452a` and `fe512fc` all succeeded (latest: run 42983358879, on `fe512fc`). |
 | `strict` is on; ESLint forbids `any` and passes with zero warnings | PASS | `tsconfig.json` has `"strict": true`. `eslint.config.mjs` sets `@typescript-eslint/no-explicit-any` to error, and lint runs with `--max-warnings=0`. Manual: a probe file using `any` and `!` failed with 2 errors (the probe was then removed). |
-| `git ls-files --eol` shows no CRLF in the index | PASS | All 111 text files are `i/lf`; the other 2 are the PNG screenshots (`i/-text`). Checked at `e0c9dea`. |
+| `git ls-files --eol` shows no CRLF in the index | PASS | All 113 text files are `i/lf`; the other 2 are the PNG screenshots (`i/-text`). Checked at `fe512fc`. |
 | `package.json` is at version `0.0.0` | PASS | `package.json` |
-| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (61 cases), `findSecretAccess › allows %s` (32), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › denies every command when its matcher fails to load`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s` (all 8 paths). Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
+| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (77 cases), `findSecretAccess › allows %s` (36), `… › denies a command over 64 KiB without checking it`, `… › decides quickly on %s` (11 worst-case inputs of 64 KiB, bound 250 ms), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › denies a 1 MB command well within the hook's timeout`, `… › denies every command when its matcher fails to load`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s` (all 8 paths). Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
 | TD-009 and TD-012 are marked resolved | PASS | `docs/tech-debt.md`, resolution lines on both items |
 
 ## Deviations from spec
@@ -128,6 +129,11 @@
 - **check:ids fails closed:** a missing `docs/` or `tech-debt.md`, or no identifiers at all, is a
   problem, so a run from the wrong directory can't pass. Each duplicate fixture got a
   `tech-debt.md`, so it fails for one reason only.
+- **The guard's checks are linear, with a 64 KiB cap** (review round 3). Backtracking patterns
+  kept growing new variants and a quadratic worst case, and a hook that times out lets the
+  command run. So container commands are checked word by word, every other rule finds its
+  program once per simple command, and longer commands are denied unchecked. Over-blocking a
+  host command chained after a container command is accepted; §5 states it.
 
 ## ADRs created
 None.
@@ -174,6 +180,19 @@ addressed. Its notes were fixed in this block too, so round 3 reviews them.
 | 4b. The registration test checks 5 of 8 deny paths | Fixed (`f8778bf`): all 8. |
 | 4c. A matcher that fails to load crashes the hook, so commands run | Fixed (`f8778bf`): the hook imports the matcher dynamically and denies when it fails to load; `guard-secrets hook › denies every command when its matcher fails to load` runs a copy of the hook next to a broken matcher. |
 
+[Round 3](../reviews/001-review-3.md): PASS WITH NOTES. It confirmed every round-2 item
+addressed. Its notes were fixed in this block, so round 4 reviews them. Rather than add more
+patterns, the container rules became a word-by-word check, and every rule became linear.
+
+| Finding | Outcome |
+| --- | --- |
+| 1. A long container command times the hook out, so it gives no deny | Fixed (`2d6793d`): container commands are checked word by word in one pass, and every other rule finds its program once per simple command, then tests its flag on the rest. The worst 64 KiB input now takes about 15 ms (681 ms before); commands over 64 KiB are denied unchecked. Timing tests cover each rule family with a 250 ms bound, and a 1 MB command gets its deny through the hook. |
+| 2. Container env reads §5 calls blocked still get through | Fixed (`2d6793d`): once a command runs something in a container, its whole text is checked, so words piped in, heredoc lines, backticks, backslashes, a bare `set` or `export` before a newline or a redirection, `.n8n` plus `config` by any path, and `docker cp` of `.n8n` are blocked, with a test row each. The volume mounted into another container joins TD-013, and §5 lists what stays uncovered (assembled words, other variable names, other files). |
+| 3. `findstr -s` | Fixed (`2d6793d`): `/` or `-` switches, with a test row. |
+| 4. §5 cases without a test row | Fixed (`2d6793d`): rows for `typeset`, a bare `export`, `docker container exec` and `n8n export:credentials --decrypted` on the host. |
+| 5. Evidence older than the last code change | Fixed: the clean clone, CI and line-ending evidence is now at `fe512fc`, the last code commit. |
+| 6. Nits | Fixed (`fe512fc`): the skills' lookup adds `--name-only`; ADR-009 and security.md's status line are rewrapped; the log's "round-2 and round-3" now says planning review rounds. |
+
 ## Notes for the next block
 - **Before block 002, the developer:**
   - creates a Clerk application with the Convex integration on and first and last names
@@ -192,8 +211,8 @@ addressed. Its notes were fixed in this block too, so round 3 reviews them.
   norms).
 - **Scripts land with their tools:** add each npm script in the commit that adds its tool, so
   every commit passes its own scripts (review round 1, issue 5).
-- **TD-013 is block 007's:** add the key file's in-container path to the guard once
-  `compose.yml` fixes it.
-- **Skill text:** this session loaded the run-block skill text cached at session start, which
-  predated the round-2 and round-3 process changes. I followed the repository's current
-  `SKILL.md`. In a new session the cached copy is current.
+- **TD-013 is block 007's:** add the key file's in-container path and n8n's data volume name to
+  the guard once `compose.yml` fixes them.
+- **Skill text:** the session that built this block loaded the run-block skill text cached at
+  session start, which predated the process changes from planning review rounds 2 and 3. It
+  followed the repository's current `SKILL.md`. In a new session the cached copy is current.
