@@ -7,7 +7,12 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["scripts/**/*.test.ts", "src/**/*.test.ts", ".claude/hooks/**/*.test.mjs"],
+          include: [
+            "*.test.ts",
+            "scripts/**/*.test.ts",
+            "src/**/*.test.ts",
+            ".claude/hooks/**/*.test.mjs",
+          ],
         },
       },
       {
