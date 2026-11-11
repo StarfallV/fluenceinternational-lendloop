@@ -1,9 +1,15 @@
 import { ESLint } from "eslint";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 // Lints fixture code at fixture paths with the project's real ESLint config, so the test proves
 // what `npm run lint` would report for a file at that path.
 const eslint = new ESLint({ cwd: import.meta.dirname });
+
+// Loading the Next.js config and its plugins takes seconds (3.4 s warm on the development machine),
+// which a cold start or a slow runner can push past a test's 5 s limit. So it loads once, here.
+beforeAll(async () => {
+  await eslint.lintText("", { filePath: "convex/warm-up.ts" });
+}, 60_000);
 
 async function restrictedImports(filePath: string, code: string): Promise<string[]> {
   const [result] = await eslint.lintText(code, { filePath });
