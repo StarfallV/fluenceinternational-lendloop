@@ -27,8 +27,8 @@
   build, check:ids), with Node from `.nvmrc` (24). Also a PR template.
 - **Project files:** `package.json` at `0.0.0` with `engines` set to
   `^22.13.0 || ^24.0.0 || >=26.0.0`; `.env.example`; the README's Development section.
-- **Secret guard, hardened (TD-009, then review rounds 1 to 3):**
-  - the matching logic lives in its own module, with 113 command cases, timing tests and entry-point
+- **Secret guard, hardened (TD-009, then review rounds 1 to 4):**
+  - the matching logic lives in its own module, with 141 command cases, timing tests and entry-point
     tests. Every check is linear, and commands over 64 KiB are denied unchecked. The hook loads
     the matcher dynamically, so a matcher that fails to load denies;
   - the hook is registered in exec form for Bash, PowerShell and Monitor, and a test checks that
@@ -44,14 +44,14 @@
 ## Acceptance criteria
 | Criterion | Result | Evidence |
 | --- | --- | --- |
-| On a clean clone, `npm ci`, typecheck, lint, format:check, test and build succeed on Windows and in CI | PASS | Manual (Windows): `e4621dd` cloned into a scratch directory, Windows 10, Node 24.20.0. All seven CI steps succeeded. CI (Ubuntu): [run 42889364207](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42889364207) on `e4621dd`, success. After the review round 1 fixes: `e0c9dea` cloned the same way, all seven steps succeeded; CI [run 42896760027](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42896760027) on `e0c9dea`, success. After the review round 3 fixes: `fe512fc` cloned the same way, all seven steps succeeded (168 tests); CI [run 42983358879](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42983358879) on `fe512fc`, success. |
+| On a clean clone, `npm ci`, typecheck, lint, format:check, test and build succeed on Windows and in CI | PASS | Manual (Windows): `e4621dd` cloned into a scratch directory, Windows 10, Node 24.20.0. All seven CI steps succeeded. CI (Ubuntu): [run 42889364207](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42889364207) on `e4621dd`, success. After the review round 1 fixes: `e0c9dea` cloned the same way, all seven steps succeeded; CI [run 42896760027](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42896760027) on `e0c9dea`, success. After the review round 3 fixes: `fe512fc` cloned the same way, all seven steps succeeded (168 tests); CI [run 42983358879](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42983358879) on `fe512fc`, success. After the review round 4 fixes: `4604bd0` cloned the same way, all seven steps succeeded (200 tests); CI [run 42986682511](https://github.com/StarfallV/fluenceinternational-lendloop/actions/runs/42986682511) on `4604bd0`, success. |
 | `/` shows the name and tagline, and lays out correctly at 360 px and 1280 px | PASS | Manual: the production build served locally, captured with headless Chrome at 1280 × 800 and in a 360 px-wide iframe. A direct 360 px capture is cropped, because the headless window has a minimum width. The name, tagline and description fit, with 16 px gutters and no horizontal overflow. Screenshots: [360 px](assets/001-landing-360.png), [1280 px](assets/001-landing-1280.png). |
 | `check:ids` passes on the repository; a test proves it fails on duplicated TD, ADR or block numbers | PASS | `npm run check:ids` reports "no duplicates (14 TD, 9 ADR, 0 BUG, 12 block)". Tests: `npm run check:ids › exits 1 and names the duplicate for duplicate-td / duplicate-adr / duplicate-bug / duplicate-block`; `… › exits 1 and names an ADR file titled with another number`; `… › exits 1 when the docs define no identifiers`; `… › exits 1 when run from a directory without docs/`; `checkIds › reports … with every location`; `checkIds › passes on this repository's docs`; `checkIds › reports an ADR file whose title names another number`; `checkIds › reports a docs directory that doesn't exist / without tech-debt.md / that defines no identifiers`. |
-| CI runs on this block's pushed branch and is green | PASS | Runs on `a858391`, `e4621dd`, `e0c9dea`, `9b2452a` and `fe512fc` all succeeded (latest: run 42983358879, on `fe512fc`). |
+| CI runs on this block's pushed branch and is green | PASS | Runs on `a858391`, `e4621dd`, `e0c9dea`, `9b2452a`, `fe512fc` and `4604bd0` all succeeded (latest: run 42986682511, on `4604bd0`). |
 | `strict` is on; ESLint forbids `any` and passes with zero warnings | PASS | `tsconfig.json` has `"strict": true`. `eslint.config.mjs` sets `@typescript-eslint/no-explicit-any` to error, and lint runs with `--max-warnings=0`. Manual: a probe file using `any` and `!` failed with 2 errors (the probe was then removed). |
-| `git ls-files --eol` shows no CRLF in the index | PASS | All 113 text files are `i/lf`; the other 2 are the PNG screenshots (`i/-text`). Checked at `fe512fc`. |
+| `git ls-files --eol` shows no CRLF in the index | PASS | All 114 text files are `i/lf`; the other 2 are the PNG screenshots (`i/-text`). Checked at `4604bd0`. |
 | `package.json` is at version `0.0.0` | PASS | `package.json` |
-| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (77 cases), `findSecretAccess › allows %s` (36), `… › denies a command over 64 KiB without checking it`, `… › decides quickly on %s` (11 worst-case inputs of 64 KiB, bound 250 ms), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › denies a 1 MB command well within the hook's timeout`, `… › denies every command when its matcher fails to load`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s` (all 8 paths). Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
+| Secret guard (Vitest): every case in security.md §5 holds; the entry-point test gets the deny; malformed input fails open with a warning; a live probe is blocked | PASS | Tests: `findSecretAccess › blocks %s` (99 cases), `findSecretAccess › allows %s` (42), `… › denies a command over 64 KiB without checking it`, `… › decides quickly on %s` (15 inputs of 64 KiB built to slow backtracking patterns, bound 250 ms), `secretNamesIn › lists each secret file a command names, but not the templates`, `guard-secrets hook › denies a %s command that names a secret file` (Bash, PowerShell, Monitor), `… › denies a command that prints secrets without naming a file`, `… › allows a harmless command with no output`, `… › fails open with a warning when its input is unreadable`, `… › fails open with a warning when the tool call has no command`, `… › denies a 1 MB command well within the hook's timeout`, `… › denies every command when its matcher fails to load`, `… › allows a Monitor WebSocket watch, which runs no command, without a warning`; `.claude/settings.json › registers the secret guard once, in exec form`, `… › runs the guard before every %s call` (Bash, PowerShell, Monitor), `… › points the guard at the hook file once CLAUDE_PROJECT_DIR is substituted`, `… › denies reading and editing %s` (all 8 paths). Manual: live probes from Claude Code were blocked: a `diff` naming `.env.local`, `docker compose config`, and a recursive PowerShell `Select-String`. A Read of `.env.local` was denied by the root-anchored rule. After review round 1, a live **Monitor** probe (`echo probe .env.local`, harmless if it had run) was denied: "PreToolUse:Monitor hook error: Blocked: the command names a secret file (.env.local)". |
 | TD-009 and TD-012 are marked resolved | PASS | `docs/tech-debt.md`, resolution lines on both items |
 
 ## Deviations from spec
@@ -129,11 +129,13 @@
 - **check:ids fails closed:** a missing `docs/` or `tech-debt.md`, or no identifiers at all, is a
   problem, so a run from the wrong directory can't pass. Each duplicate fixture got a
   `tech-debt.md`, so it fails for one reason only.
-- **The guard's checks are linear, with a 64 KiB cap** (review round 3). Backtracking patterns
-  kept growing new variants and a quadratic worst case, and a hook that times out lets the
-  command run. So container commands are checked word by word, every other rule finds its
-  program once per simple command, and longer commands are denied unchecked. Over-blocking a
-  host command chained after a container command is accepted; §5 states it.
+- **The guard's checks are linear, with a 64 KiB cap** (review rounds 3 and 4). Backtracking
+  patterns kept growing new variants and a quadratic worst case, and a hook that times out lets
+  the command run. So container commands are checked word by word, every other rule finds its
+  program once per simple command, flags are tested token by token with anchored patterns, and
+  longer commands are denied unchecked. Programs are recognised by name, so a path or `.exe`
+  doesn't hide them. Over-blocking a host command chained after a container command is
+  accepted; §5 states it.
 
 ## ADRs created
 None.
@@ -192,6 +194,16 @@ patterns, the container rules became a word-by-word check, and every rule became
 | 4. §5 cases without a test row | Fixed (`2d6793d`): rows for `typeset`, a bare `export`, `docker container exec` and `n8n export:credentials --decrypted` on the host. |
 | 5. Evidence older than the last code change | Fixed: the clean clone, CI and line-ending evidence is now at `fe512fc`, the last code commit. |
 | 6. Nits | Fixed (`fe512fc`): the skills' lookup adds `--name-only`; ADR-009 and security.md's status line are rewrapped; the log's "round-2 and round-3" now says planning review rounds. |
+
+[Round 4](../reviews/001-review-4.md): PASS WITH NOTES. It confirmed round 3's items 2 to 6
+addressed and item 1 partly. Its notes were fixed in this block, so round 5 reviews them.
+
+| Finding | Outcome |
+| --- | --- |
+| 1. The rewrite missed docker by path or as `.exe` (a regression) | Fixed (`4604bd0`): docker is recognised by program name (last path segment, without `.exe`); the compose config rule accepts `.exe`. A test row for each shape the review listed, plus a Windows backslash path. |
+| 2. Three flag patterns still quadratic; the docs claimed every check linear | Fixed (`4604bd0`): grep, rg and findstr flags are tested token by token with anchored patterns. The 64 KiB cluster shapes that took 5–13 s take under 1 ms; the worst input tried takes about 23 ms. Timing rows cover the cluster shapes, and §5, this log and the test comment give the measured bound. |
+| 3. Recursive grep with an argument attached (`-rnC3`) | Fixed (`4604bd0`): the token check covers `-rnA2`, `-rnC3`, `-rn5`, `-rm1` and `rg -uuA2`, plus `-nd recurse` and `--dir recurse`, with false-positive rows for `-A2`, `-nC3`, `-d skip`, `rg -A2` and `rg -nU`. |
+| Found while fixing | `os.environ` inside a container command is blocked; §5's uncovered list adds programs under another name and other languages' environment APIs. |
 
 ## Notes for the next block
 - **Before block 002, the developer:**
