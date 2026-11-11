@@ -35,4 +35,9 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+        env:
+          # Placeholders: the build inlines public values but never contacts Convex or Clerk, so
+          # CI needs no secrets. The key is a well-formed fake: pk_test_ + base64("clerk.example.com$").
+          NEXT_PUBLIC_CONVEX_URL: http://127.0.0.1:3210
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
       - run: npm run check:ids

@@ -1,3 +1,5 @@
+import { LandingCta } from "@/features/shell/landing-cta";
+
 export default function LandingPage() {
   return (
     <section className="py-16 sm:py-24">
@@ -7,6 +9,9 @@ export default function LandingPage() {
         List the tools you are happy to lend, and borrow the ones you need for a few days from your
         neighbors.
       </p>
+      <div className="mt-8">
+        <LandingCta />
+      </div>
     </section>
   );
 }
