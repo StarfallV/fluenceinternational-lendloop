@@ -35,9 +35,9 @@ Run these checks in order. If one fails, stop and report it.
 2. **Base branch** (commit-conventions rule). Blocks run one at a time, in number order:
    - the base is block $ARGUMENTS−1's branch (the Branch line of its spec), or
      `docs/planning-baseline` for block 001. A fix block's spec exists only on its own branch, so
-     if that spec isn't in this checkout, find the commit that has it with
-     `git log --all --format=%H -1 -- "docs/blocks/<NNN−1>-*.md"`, and read its Branch line with
-     `git show <sha>:<path>`;
+     if that spec isn't in this checkout, find the commit that has it and its path with
+     `git log --all --format=%H --name-only -1 -- "docs/blocks/<NNN−1>-*.md"`, and read its
+     Branch line with `git show <sha>:<path>`;
    - if that branch has merged (`git merge-base --is-ancestor origin/<branch> origin/main`), the
      base is `main` instead.
 3. **The base is Closed.** Read the base's state from the base itself, never from the current
