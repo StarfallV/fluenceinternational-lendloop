@@ -5,13 +5,13 @@
 **Branch:** feature/006-integration-core
 
 ## Goal
-Build the Convex half of the n8n integration: signing, the transactional outbox with ordered,
-bounded retries and dead letters, the signed HTTP endpoints, reminder claims, redaction, and
+Build the Convex half of the n8n integration: signing, the transactional outbox with bounded
+retries and dead letters, the signed HTTP endpoints for reminders, runs and errors, redaction, and
 idempotent write-backs. All of it is testable without n8n running.
 
 ## Dependencies
 - Depends on: 005
-- Depended on by: 007, 008
+- Depended on by: 007
 
 ## Requirements
 AUT-1 (Convex side), AUT-2 (endpoints), AUT-3 (data), ADM-4 (data and retry), SEC-3 (Convex side),
@@ -21,145 +21,86 @@ SEC-5 (payloads, redaction), REL-1, REL-2 (Convex side), BR-19, BR-20.
 - [architecture.md §4, §7–§12](../architecture.md#7-convex--n8n-loan-events),
   [ADR-003](../adr/ADR-003-convex-decides-n8n-delivers.md),
   [ADR-004](../adr/ADR-004-hmac-request-signing.md),
-  [ADR-005](../adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md),
-  [ADR-006](../adr/ADR-006-failure-visibility.md).
+  [ADR-005](../adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md) and
+  [ADR-006](../adr/ADR-006-failure-visibility.md), with their 2026-11-11 amendments.
+- [security-standards](../../.claude/rules/security-standards.md) (Integration).
 
 ## Outputs
 - **Libraries:**
-  - `convex/lib/hmac.ts`: newline-separated canonical string; the key is the UTF-8 of the secret
-    string; constant-time comparison. A fixed test vector, which block 008 reuses in n8n.
+  - `convex/lib/hmac.ts`: newline-separated canonical string, the UTF-8 of the secret string as
+    the key, constant-time comparison, and a fixed test vector that block 007 reuses in n8n.
   - `convex/lib/redact.ts`: replaces email-shaped strings and truncates to 200 characters.
-- **Tables:** `outbox`, `automationEvents`, `workflowRuns` and `integrationStats`, with the
-  indexes in architecture.md §4, plus `loans.nextReminderOn` and its index.
-- **`convex/model/automation.ts`:**
-  - `enqueueLoanEvent(ctx, loan, type, reason?)`, which resolves the recipient per BR-19;
-  - the payload builder (architecture.md §7.2);
-  - the outcome classifier (§7.3), including the positive acknowledgement, and the backoff
-    schedule;
-  - the reminder claim and write-back rules (§8).
+- **Tables:** `outbox`, `automationEvents` and `workflowRuns`, with the indexes in
+  architecture.md §4.
+- **`convex/model/automation.ts`:** `enqueueLoanEvent(ctx, loan, type, reason?)`, which resolves
+  the recipient per BR-19; the payload builder (§7.2); the outcome classifier and backoff (§7.3);
+  the due-reminder and reminder-result rules (§8).
 - **Emission:** every loan transition from blocks 004 and 005 enqueues exactly one event through
-  `transition()`. That includes auto-declines, expiries, and cancellations from listing deletion
-  or removal. `transition()` also maintains `nextReminderOn`: set on approval, cleared when the
-  loan leaves `approved`. A one-off internal mutation backfills `nextReminderOn` for loans approved
-  before this block (blocks 004–005); it is run once after deploying.
-- **Delivery in `convex/automation.ts`** (architecture.md §7.3):
-  - `claim`: pending, due, no live lease, `attempts < 6`, no other event of its loan in flight
-    and no earlier one pending; increments attempts; returns a lease token. A superseded row
-    becomes `skipped`, and a blocked row's `nextAttemptAt` moves behind the event that blocks it.
-  - `deliver` (action): aborts its fetch after 30 s; only the positive acknowledgement counts as
-    delivered; always records an outcome, mapping exceptions to `CONFIG` or `INTERNAL`.
-  - `recordOutcome`: ignores stale tokens. When a row becomes final, the loan's oldest pending
-    event gets `nextAttemptAt` = now and is scheduled.
-  - `sweep` (cron, every 5 minutes, bounded batches): schedules due rows, dead-letters crashed
-    final attempts, and runs the reminder-claim sweep (`abandoned`, `missed`; architecture.md §8).
-  - Admin `retryDelivery` and `retryAllDeliveries`: audited; superseded rows become `skipped`, and
-    revived rows are scheduled at once.
+  `transition()`, including auto-declines, expiries, and cancellations from listing deletion or
+  removal, and schedules its first delivery attempt.
+- **Delivery** (§7.3): the `deliver(outboxId, attempt)` action (30 s abort; only the positive
+  acknowledgement counts; always records an outcome, mapping exceptions to `CONFIG` or
+  `INTERNAL`); `recordOutcome`, which applies only to the row's current attempt; backoff of
+  30 s, 2 min, 10 min and 1 h (5 attempts); the 10-minute sweep cron; and admin
+  `retryDelivery` and `retryAllDeliveries`, both audited.
+- **`convex/http.ts`** (§8): `/n8n/reminders/due`, `/n8n/reminders/result`, `/n8n/runs` and
+  `/n8n/errors`; checks in the order 413 → 401 → 400 → handler; rejections logged as codes;
+  handlers call internal functions only.
 - **Queries:**
-  - admin `health`: counts by status, dead letters, recent errors under any workflow slug (through
-    `by_kind_received`), today's rejections per reason, abandoned reminder claims, reminders
-    missed in the last 24 h, the last reminder run with its counts, and a heartbeat state of `ok`,
-    `stale` or `none`, computed from the clock;
-  - `activityForLoan`: the loan's parties see statuses only; admins also see the redacted
-    detail; anyone else gets `NOT_FOUND`.
-- **`convex/http.ts`:**
-  - endpoints `/n8n/overdue-loans` (with claims), `/n8n/reminders`, `/n8n/runs`, `/n8n/errors`;
-  - checks run in the order 413 → 401 → 400 → handler;
-  - rejection reasons go to the logs and, at most 100 times per reason per day, to the daily
-    `integrationStats` row. The response is decided first and never depends on that write;
-  - handlers call internal functions only.
-- **Smoke-test helper:** `dev:createOverdueLoan` (guarded), used by block 009. It creates a fresh
-  approved loan between two demo users, with dates in the past and `nextReminderOn` today, so
-  every smoke run starts from its own overdue loan.
+  - admin `health`: failed deliveries, recent workflow errors under any slug, and the last
+    reminder run with its counts and a heartbeat state of `ok`, `stale` or `none`, computed from
+    the clock;
+  - `activityForLoan`: the loan's parties see statuses only, admins also see the redacted detail,
+    and anyone else gets `NOT_FOUND`.
+- **Smoke-test helper:** `dev:createOverdueLoan` (guarded), used by block 007. It creates a fresh
+  approved loan between two demo users with dates in the past.
 - **Environment:** `N8N_LOAN_EVENTS_URL`, both signing secrets and `APP_URL`, read through
   `lib/env.ts`.
 
 ## Acceptance Criteria
-- [ ] **HMAC** (tests):
-  - a valid signature verifies;
-  - a tampered body, wrong path, wrong method, wrong secret, or a timestamp 301 s off all fail;
-  - the fixed vector passes;
-  - the canonical string uses newlines.
-- [ ] **Redaction:** an SMTP-style message such as
-      `550 5.1.1 <sam@example.com>: Recipient address rejected` is stored without the address and
-      truncated to 200 characters (test).
-- [ ] **Emission:** each transition creates exactly one outbox row with the right recipient. The
-      table-driven test covers requested, approved, declined (manual and automatic), cancelled
-      (every reason), expired and returned. Outbox rows hold no email or name. Approval sets
-      `nextReminderOn` to the day after the end date, and every transition out of `approved`
-      clears it. The backfill sets it for approved loans that lack it, and a second run changes
-      nothing.
-- [ ] **Payload:** contains exactly the fields in architecture.md §7.2, with `loanRole` and no loan
-      ID (test on the built object).
-- [ ] **Delivery outcomes** with a stubbed `fetch` and fake timers (tests):
+- [ ] **HMAC** (tests): a valid signature verifies; a tampered body, wrong path, wrong method,
+      wrong secret, or a timestamp 301 s off all fail; the fixed vector passes; the canonical
+      string uses newlines.
+- [ ] **Redaction** (test): `550 5.1.1 <sam@example.com>: Recipient address rejected` is stored
+      without the address and truncated to 200 characters.
+- [ ] **Emission** (table-driven test): each transition creates exactly one outbox row with the
+      right recipient: requested, approved, declined (manual and automatic), cancelled (every
+      reason), expired and returned. Outbox rows hold no email or name.
+- [ ] **Payload** (test): exactly the fields in architecture.md §7.2, with `loanRole` and no loan
+      ID.
+- [ ] **Delivery outcomes** (tests, stubbed `fetch`, fake timers):
   - `200` with `{"delivered":"<eventId>"}` → `delivered`, plus one `notification:<eventId>`
     record;
-  - `200` with any other body, including another event's ID → `pending` with `BAD_ACK`;
-  - `500`, a timeout (the fetch is aborted at 30 s), `404`, `429` and `530` (`TUNNEL_STALE`) →
-    stay `pending` with the scheduled next attempt;
-  - `404` with `X-LendLoop-Edge: denied` → `failed` at once with `CONFIG`;
+  - `200` with any other body, including another event's ID → the next attempt, with `BAD_ACK`;
+  - `500`, a timeout (aborted at 30 s), `404` and `429` → the next attempt, scheduled;
   - `400`, `401`, `422` and other `4xx` → `failed` at once;
   - a missing URL or secret → `failed` with `CONFIG`;
-  - the sixth failed attempt → `failed`.
-- [ ] **Claim rules** (tests):
-  - a row that isn't due, is leased, isn't `pending`, or already has 6 attempts cannot be
-    claimed;
-  - two concurrent claims → only one gets a token;
-  - a later event of a loan waits while an earlier one is `pending`, or while any other event of
-    the loan is in flight, and its `nextAttemptAt` moves behind the event that blocks it;
-  - once the event ahead becomes final, the next one is **delivered** without waiting for the
-    sweep (the test runs scheduled functions to completion and asserts the delivery);
-  - a revived dead letter waits while a newer event of its loan is in flight, and becomes
-    `skipped` once that event is delivered.
-- [ ] **Crash paths** (tests):
-  - `recordOutcome` with a stale token changes nothing;
-  - a `deliver` that dies without recording leaves an expired lease. The sweep re-schedules the
-    row (the attempt counts). After the sixth such attempt the sweep dead-letters it, and it is
-    never sent a seventh time.
-- [ ] **Admin retry** (tests): `retryDelivery` and `retryAllDeliveries` revive dead letters,
-      schedule them, and write audit rows. A dead letter whose loan already has a newer delivered
-      event becomes `skipped`. A non-admin gets `FORBIDDEN`.
-- [ ] **HTTP endpoints** (tests through `convex-test` HTTP calls):
-  - over 64 KiB → `413` even when unsigned (the size check comes first);
-  - unsigned, badly signed or expired → `401` with an empty body;
-  - invalid body → `400`;
-  - valid → `200`;
-  - each rejection increments today's count for its reason until that count reaches 100; after
-    that, nothing more is written for it;
-  - the response never depends on the counter: when the counter write fails, a bad signature
-    still gets `401` (a test of the rejection path with a failing counter).
-- [ ] **Reminder claims** (tests, fake time):
-  - `/n8n/overdue-loans` returns only loans due a reminder (approved, `nextReminderOn` today or
-    earlier, fewer than 7 sent), with exactly the listed fields, and marks each `sending` with a
-    30-minute lease;
-  - with 250 finished loans (no `nextReminderOn`) and one due loan, the due loan is returned;
-  - a call from a **different** `runId` within the lease returns none of them;
-  - a repeated call with the **same** `runId` returns the same loans and the same `reclaimed`;
-  - after the lease expires, the sweep marks the claims `abandoned` and `health` lists them.
-    A later run takes them over, and `reclaimed` counts them for that run only;
-  - **an interrupted 20:00 run:** a claim still open after midnight becomes `missed`, `health`
-    lists it for 24 h, and the next day's first run claims the loan again;
-  - a loan with a `sent` reminder today, or with 7 reminders sent, is never returned. A `failed`
-    one is returned to the next run.
-- [ ] **Reminder write-backs** (tests):
-  - a key that doesn't match the body's `loanId`, has a future date, or has no record → `400`;
-  - `sent` twice → one record; `remindersSent` + 1 exactly once; `nextReminderOn` moves to the
-    day after the reminder's date and never backwards, and the 7th reminder clears it;
-  - `sent` for a loan returned after it was claimed leaves `nextReminderOn` cleared;
-  - `sent` is accepted from a run that has lost its claim, and on `abandoned` and `missed`
-    records;
-  - `failed` from the run holding the claim → `failed`. `failed` from any other run, or on any
-    other state, is ignored, and a live claim is untouched;
-  - `sent` is never downgraded.
-- [ ] **Run and error records** (tests): `/n8n/runs` (by `runId`) and `/n8n/errors` (by
-      `errorId`, with or without an `executionId`) are idempotent. An unknown `workflow` value is
-      stored, not rejected, and an error under it appears in `health`'s recent errors.
-- [ ] **Heartbeat state** (tests): `none` before any run; `ok` after a run; `stale` once the clock
-      is more than 26 h past the last run's `receivedAt`.
+  - the 5th failed attempt → `failed`.
+- [ ] **Attempt guard** (tests): a `deliver` scheduled for an attempt that isn't the row's current
+      one does nothing; a stale `recordOutcome` changes nothing; the sweep counts a `pending` row
+      more than 10 minutes overdue as a failed attempt and schedules the next, and dead-letters it
+      after the 5th.
+- [ ] **Admin retry** (tests): `retryDelivery` and `retryAllDeliveries` revive dead letters at
+      attempt 1, schedule them, and write audit rows. A non-admin gets `FORBIDDEN`.
+- [ ] **HTTP endpoints** (tests through `convex-test` HTTP calls): over 64 KiB → `413` even when
+      unsigned; unsigned, badly signed or expired → `401` with an empty body; an invalid body →
+      `400`; valid → `200`. A rejection writes nothing.
+- [ ] **Due reminders** (tests, fake time): only approved loans past their end date, with fewer
+      than 7 reminders and no `sent` record today, with exactly the listed fields, at most 50. A
+      loan whose reminder failed today is returned again.
+- [ ] **Reminder results** (tests): a key that doesn't match the body's `loanId`, a future date,
+      or an unknown loan → `400`; `sent` twice → one record, and `remindersSent` + 1 exactly
+      once; `failed` after `sent` changes nothing; `sent` after `failed` → `sent`, counted once;
+      after the 7th reminder the loan is long overdue and no longer due.
+- [ ] **Run and error records** (tests): `/n8n/runs` and `/n8n/errors` are idempotent by their
+      IDs; an unknown workflow slug is stored, and its errors appear in `health`.
+- [ ] **Heartbeat state** (tests): `none` before any run, `ok` after one, `stale` once the clock is
+      more than 26 h past the last run's `receivedAt`.
+- [ ] **Activity** (tests): visible only to the loan's parties and admins, others get
+      `NOT_FOUND`; parties see no error messages or emails; admins see only redacted messages.
 
 ## Known Constraints
 - Verify Web Crypto HMAC in Convex actions and HTTP actions, and how `convex-test` calls HTTP
   actions ([architecture.md §16](../architecture.md#16-open-verification-items)).
-- `convex-test` is not a real backend, so the concurrency tests here only show that the logic is
-  correct. The real proof is `smoke:idempotency` in block 009.
-- `N8N_LOAN_EVENTS_URL` gets its real value in block 007. Until then, deliveries fail at once
-  with `CONFIG`, are visible as dead letters, and can be re-sent with "Retry all".
+- `N8N_LOAN_EVENTS_URL` gets its value from block 007's setup. Until then, deliveries fail at once
+  with `CONFIG`, show as dead letters, and can be re-sent with Retry all.

@@ -1,6 +1,6 @@
 # ADR-001 — Local topology: Convex cloud dev deployment, n8n in Docker behind a filtered tunnel
 
-**Status:** Accepted (revised 2026-11-10 after planning review round 1)
+**Status:** Accepted (revised 2026-11-10 after planning review round 1; amended 2026-11-11: Option B)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -83,3 +83,26 @@ anyone who prefers it.
   endings for files mounted into Linux containers.
 - The README must explain why the tunnel exists, because it is the least obvious part of the
   setup.
+
+## Amendment — 2026-11-11: Option B, local Convex
+
+The developer judged the tunnel, the edge proxy and the URL sync too much machinery for the task,
+and chose **Option B**. A spike in a scratch project (block 001's completion log) settled its open
+cons:
+- `npx convex dev` provisions an **anonymous local deployment** without a Convex account (Convex
+  1.49, beta). HTTP actions, crons, the scheduler, env variables and components such as the rate
+  limiter all work on it.
+- The backend listens on **all interfaces** (ports 3210 and 3211), not only `127.0.0.1`. An n8n
+  container therefore reaches it through `host.docker.internal`, mapped to the host gateway in
+  compose, on Linux too. No self-hosted backend in compose is needed.
+- Actions reach the host's `localhost`, where n8n's port is published.
+
+So: Next.js, the local Convex deployment and the compose stack (n8n and Mailpit) all run on the
+developer's machine, and only Clerk is in the cloud. The tunnel, Caddy, `tunnel:sync`, the
+`TUNNEL_STALE` and edge-denied codes are dropped. Requests are still signed in both directions
+(SEC-3), and the path-only canonical string keeps signatures valid under either host name.
+
+Trade-offs: the backend's ports are open to the local network unless the firewall blocks them
+(security.md §6), local deployments are a beta feature, and reviewers use the local flow instead
+of a cloud dev deployment. The production note (block 008) covers a cloud deployment, with n8n
+reached over a private network or a real domain.

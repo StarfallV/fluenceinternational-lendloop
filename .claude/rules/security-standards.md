@@ -32,15 +32,14 @@ A checklist that applies to every change. The reasoning behind each item is in
 
 - **Convex HTTP endpoints** run their checks in a fixed order: size (`413`), then signature and
   timestamp (`401`, no body), then body validation (`400`). The signature is verified over the
-  raw bytes before parsing. Each rejection is counted in `integrationStats`, capped per reason
-  per day, and the response never depends on that count.
+  raw bytes before parsing. Each rejection is logged as a reason code, and nothing about it is
+  stored.
 - **n8n** verifies the signature before using any field.
 - **Signatures:** newline-separated canonical string; the key is the UTF-8 of the secret string;
   ±300 s window; constant-time comparison.
 - **Senders** transmit exactly the bytes they signed.
-- **Write-backs** are idempotent by key (architecture.md §10). Reminders are claimed before they
-  are sent, a claim call repeated with the same `runId` returns the same claims, and a `failed`
-  write-back applies only to the current claim (architecture.md §8).
+- **Write-backs** are idempotent by key (architecture.md §10). A reminder's `sent` record is
+  final and counted once, and a `failed` write-back never overwrites it (architecture.md §8).
 - **Acknowledgements:** only `{"delivered":"<eventId>"}` counts as a delivered loan event.
 - **Payloads:** outgoing payloads contain only the fields in architecture.md §7.2.
 - **Emails** are plain text. Single-line text (names) rejects control characters.

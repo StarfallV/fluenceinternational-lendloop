@@ -27,12 +27,8 @@ only once it is Closed.
 | [004](004-borrowing-and-loans.md) | LOAN | Borrowing, loans and the clock | 003 | Planned | |
 | [005](005-admin-moderation.md) | AUTH | Admin moderation | 004 | Planned | |
 | [006](006-integration-core.md) | AUTO | Integration core (Convex side) | 005 | Planned | |
-| [007](007-local-automation-stack.md) | AUTO | Local automation stack | 006 | Planned | |
-| [008](008-loan-event-notifications.md) | AUTO | Loan event notifications and error handler | 006, 007 | Planned | |
-| [009](009-overdue-reminders.md) | AUTO | Overdue reminders workflow | 008 | Planned | |
-| [010](010-automation-activity-and-health.md) | WEB | Automation activity and health UI | 009 | Planned | |
-| [011](011-ux-polish.md) | WEB | UX polish | 010 | Planned | |
-| [012](012-documentation-and-release.md) | PLT | Documentation and release | 011 | Planned | v1.0.0 |
+| [007](007-n8n-stack-and-workflows.md) | AUTO | n8n stack and workflows | 006 | Planned | |
+| [008](008-automation-ui-polish-and-release.md) | WEB | Automation UI, polish, documentation and release | 007 | Planned | v1.0.0 |
 
 **Status values:** Planned → In progress → In review → Closed. Closed means the review passed and
 the docs are final. A Closed block may still be waiting for its PR.
@@ -44,7 +40,7 @@ the docs are final. A Closed block may still be waiting for its PR.
 
 **Status:** Planned
 **Module:** PLT | AUTH | TOOL | LOAN | AUTO | WEB
-**Branch:** feature/NNN-short-slug (a fix block after block 012: fix/BUG-nnn-short-slug)
+**Branch:** feature/NNN-short-slug (a fix block after the last planned block: fix/BUG-nnn-short-slug)
 
 ## Goal
 One or two sentences: what this block delivers and why it matters.

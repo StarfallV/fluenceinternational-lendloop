@@ -1,6 +1,7 @@
 # LendLoop — Product Requirements
 
-**Status:** Baseline v1.3 (2026-11-10, revised after planning review
+**Status:** v1.4 (2026-11-11): AUT-2, ADM-4 and OPS-1 simplified, and the blocks re-planned,
+at the start of block 002. Baseline v1.3 (2026-11-10, revised after planning review
 [rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md) and
 [3](reviews/planning-baseline-review-3.md))
 **Scope:** Everything LendLoop must do, the rules it enforces, and which delivery block delivers
@@ -67,14 +68,14 @@ decisions (approve, decline, return); least privilege applies _(decision)_.
 | ADM-1 | An admin can remove any listing, with an optional reason. |
 | ADM-2 | An admin can view all loans, filtered by status. Long-overdue loans (BR-20) are flagged. |
 | ADM-3 | An admin can mark or unmark a user as a **Trusted Lender**. The users list shows each user's join date and number of listings, so people with the same display name can be told apart. |
-| ADM-4 | An admin can see automation health: failed webhook deliveries (with **Retry** and **Retry all**), recent n8n workflow errors, abandoned and missed reminders, today's rejected integration calls, and when the reminder workflow last ran. The navigation flags anything that needs action: failed deliveries, recent errors, abandoned or missed reminders, or a reminder workflow that has stopped running _(decision)_. |
+| ADM-4 | An admin can see automation health: failed webhook deliveries (with **Retry** and **Retry all**), recent n8n workflow errors, and when the reminder workflow last ran. The navigation flags anything that needs action: failed deliveries, a workflow error in the last 24 hours, or a reminder workflow that has stopped running _(decision)_. |
 
 ### 3.5 Automation
 
 | ID | Requirement |
 | --- | --- |
 | AUT-1 | **Request notification.** When a borrow request is created or changes status, Convex calls an n8n webhook. The workflow emails the relevant user (§5.4), using only the fields it needs. |
-| AUT-2 | **Overdue reminders.** A scheduled n8n workflow fetches overdue loans from a Convex HTTP endpoint, emails each borrower a daily reminder, and writes the reminder status back to Convex. It runs every hour in the daytime, so a missed or interrupted run is made up within the hour, and each borrower still gets at most one reminder per loan per day (BR-20). A reminder that still hasn't gone out when the day ends is shown to admins as missed, and the borrower is reminded the next day _(decision)_. |
+| AUT-2 | **Overdue reminders.** A scheduled n8n workflow fetches overdue loans from a Convex HTTP endpoint once a day, emails each borrower a reminder, and writes the reminder status back to Convex. Each borrower gets at most one reminder per loan per day (BR-20). A reminder that fails stays due, so the next run tries again _(decision)_. |
 | AUT-3 | **Automation activity (bonus).** Each loan shows its recent automation activity, for example "Lender notified · 3 minutes ago" or "Overdue reminder sent · 2 days ago". |
 
 ## 4. Security, privacy and reliability requirements
@@ -142,14 +143,14 @@ decisions (approve, decline, return); least privilege applies _(decision)_.
 | UX-3 | Views update live when data changes (Convex reactivity), with no manual refresh, including when the date changes. |
 | QA-1 | TypeScript strict mode. Lint, typecheck and tests pass on every commit, and CI enforces them on every pushed branch. |
 | QA-2 | Automated tests cover every access rule, every loan state transition, the business-rule boundaries, signature verification, redaction and idempotency. |
-| OPS-1 | A reviewer can run the whole system locally by following the README: one setup command, with Docker for n8n, and two browser profiles to act as lender and borrower. |
+| OPS-1 | A reviewer can run the whole system locally by following the README: a Clerk application, Docker for n8n, a local Convex deployment that needs no account, one setup command, and two browser profiles to act as lender and borrower. |
 
 ## 7. Out of scope
 
 Payments and deposits, ratings and reviews, in-app messaging, tool photos, maps and geofencing,
 multiple neighborhoods, invite-only sign-up (TD-007), a borrower-side "I returned it" confirmation
 (TD-008), notification preferences and unsubscribe, SMS and push notifications, and localization.
-Production-only concerns are covered in `docs/production.md` (block 012).
+Production-only concerns are covered in `docs/production.md` (block 008).
 
 ## 8. Deliverables
 
@@ -173,18 +174,18 @@ requirements it delivers. When a block closes, its log is linked in the Evidence
 | LST-5 | 003 (view), 004 (availability and pending counts) | — |
 | BRW-1 – BRW-7 | 004 | — |
 | ADM-1 – ADM-3 | 005 | — |
-| ADM-4 | 006 (data, retry), 010 (UI) | — |
-| AUT-1 | 006 (Convex side), 008 (workflow) | — |
-| AUT-2 | 006 (endpoints), 009 (workflow) | — |
-| AUT-3 | 006 (data), 010 (UI) | — |
+| ADM-4 | 006 (data, retry), 008 (UI) | — |
+| AUT-1 | 006 (Convex side), 007 (workflow) | — |
+| AUT-2 | 006 (endpoints), 007 (workflow) | — |
+| AUT-3 | 006 (data), 008 (UI) | — |
 | SEC-1, SEC-2 | 002 (wrappers), 003–005 (rules) | — |
-| SEC-3 | 006 (Convex side), 008, 009 (n8n side) | — |
-| SEC-4 | 007 (env files and sanitizer), 008, 009 | — |
-| SEC-5 | 003, 004, 005, 006, 008, 009, 010 | — |
+| SEC-3 | 006 (Convex side), 007 (n8n side) | — |
+| SEC-4 | 007 (env files, workflows and sanitizer) | — |
+| SEC-5 | 003 – 008 | — |
 | SEC-6 | 003, 004 | — |
-| REL-1 | 006, 009 | — |
-| REL-2 | 006, 007, 008, 009, 010 | — |
-| UX-1 – UX-3 | 003–005, 010, 011 | — |
+| REL-1 | 006, 007 | — |
+| REL-2 | 006, 007, 008 | — |
+| UX-1 – UX-3 | 003–005, 008 | — |
 | QA-1, QA-2 | 001 (CI), every block (tests) | [001](logs/001-completion.md) (CI, strict TypeScript, lint) |
-| OPS-1 | 007, 012 | — |
-| DEL-1 – DEL-4 | 007 (workflows folder), 008, 009, 012 | — |
+| OPS-1 | 007, 008 | — |
+| DEL-1 – DEL-4 | 007 (workflows), 008 (README, production note) | — |

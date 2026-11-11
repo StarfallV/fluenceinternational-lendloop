@@ -1,6 +1,6 @@
 # ADR-006 — Failure visibility: dead letters, an error workflow, and a heartbeat
 
-**Status:** Accepted (revised 2026-11-10 after planning review rounds 1, 2 and 3)
+**Status:** Accepted (revised 2026-11-10 after planning review rounds 1, 2 and 3; amended 2026-11-11)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -75,4 +75,17 @@ same reactive UI show health that shows everything else.
 - The error workflow uses only error metadata: workflow slug, node, error code, and a redacted,
   truncated message. Never the failed execution's payload. Convex redacts again before storing.
   Parties see only a status; admins see the redacted detail.
-- Production would add an external alert on the heartbeat (block 012).
+- Production would add an external alert on the heartbeat (block 008).
+
+## Amendment — 2026-11-11: a leaner health view
+
+Decided with the simpler reminders (ADR-005's 2026-11-11 amendment). Admin health shows:
+- failed deliveries, with **Retry** and **Retry all**;
+- recent n8n workflow errors;
+- when the reminder workflow last ran, with a warning after 26 h and "no run yet" on a fresh
+  setup. The heartbeat stays: it is the one signal that n8n stopped altogether.
+
+Dropped: abandoned and missed claims (the claims are gone), the per-day rejected-call counters
+(rejections are logged as codes; a wrong secret also shows up as workflow errors), and the
+tunnel hints. The navigation badge covers failed deliveries, a workflow error in the last 24 h,
+and a stale reminder run.

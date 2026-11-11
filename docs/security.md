@@ -1,7 +1,8 @@
 # LendLoop — Security and Privacy
 
-**Status:** v1.4 (2026-11-11): §5's agent guardrails rewritten in block 001 (TD-009) and
-revised after its review rounds [1](reviews/001-review-1.md), [2](reviews/001-review-2.md),
+**Status:** v1.5 (2026-11-11): local development topology (local Convex, no tunnel) at the start
+of block 002. v1.4: §5's agent guardrails rewritten in block 001 (TD-009) and revised after its
+review rounds [1](reviews/001-review-1.md), [2](reviews/001-review-2.md),
 [3](reviews/001-review-3.md) and [4](reviews/001-review-4.md). Baseline v1.3 (2026-11-10,
 revised after planning review [rounds 1](reviews/planning-baseline-review-1.md),
 [2](reviews/planning-baseline-review-2.md) and [3](reviews/planning-baseline-review-3.md)).
@@ -23,11 +24,13 @@ they exist.
 
 ## 2. Trust boundaries
 
-1. **Browser → Convex.** Untrusted input. Every Convex function is reachable from the internet,
-   whatever the UI shows.
-2. **Convex → n8n.** Crosses the public internet through the tunnel locally, or directly in
+1. **Browser → Convex.** Untrusted input. Every Convex function is reachable by anyone who can
+   reach the deployment, whatever the UI shows.
+2. **Convex → n8n.** Stays on the developer's machine locally (`localhost`); crosses a network in
    production.
-3. **n8n → Convex.** HTTP endpoints anyone can reach.
+3. **n8n → Convex.** HTTP endpoints anyone who can reach the deployment can call. Locally the
+   backend listens on all interfaces, so that includes the local network unless the firewall
+   blocks it.
 4. **n8n → SMTP.** Leaves our control once sent.
 5. **Operator → Convex.** CLI and dashboard with the deploy key. Trusted, used for role grants
    and seeds.
@@ -44,10 +47,10 @@ they exist.
 | Replay | ±300 s timestamp window, plus idempotency keys on every write to Convex. Replays to n8n inside the window are a residual risk (§6). | ADR-004, ADR-005 |
 | Cross-endpoint replay | The signature covers the method and path | ADR-004 |
 | Oversized or malformed bodies | 64 KiB limit checked first; validated with Convex validators before any write | architecture §8 |
-| Junk traffic turned into writes | Rejections are counted at most 100 times per reason per day, and the response never depends on the count, so unauthenticated requests cause a bounded number of writes and can't turn a `401` into a `500` | architecture §4, §8 |
+| Junk traffic turned into writes | Rejected requests write nothing: the reason goes to the logs as a code, and every check runs before any write | architecture §8 |
 | Personal data in error text | n8n sends error codes plus redacted, truncated messages. Convex redacts again before storing. Parties see only the status; admins see the redacted detail. | architecture §4, §8 |
-| Secrets committed or leaked | Secrets are only in env files and n8n credentials. `.env*` and `.secrets/` are gitignored. Compose gives `.env.n8n` to the n8n container only, and Next.js never loads it. The encryption key is passed as a file. The workflow exporter strips pinned data, and a CI check fails on anything secret-shaped. Claude Code deny rules (best-effort) cover reading env files and listing Convex env values. | §5 |
-| The n8n editor exposed through the tunnel | An edge proxy forwards only `POST /webhook/lendloop/*`. The editor and test webhooks stay on localhost. | ADR-001, `compose.yml` |
+| Secrets committed or leaked | Secrets are only in env files and n8n credentials. `.env*` and `.secrets/` are gitignored. Compose gives `.env.n8n` to the n8n container only, and Next.js never loads it. n8n's encryption key stays in its data volume, never in `$env`. The workflow exporter strips pinned data, and a CI check fails on anything secret-shaped. Claude Code deny rules (best-effort) cover reading env files and listing Convex env values. | §5 |
+| The n8n editor or Mailpit exposed to the network | Compose publishes n8n and Mailpit on `127.0.0.1` only; n8n reaches Convex through `host.docker.internal`, and nothing is tunnelled | ADR-001, `compose.yml` |
 | HTML or header injection through user text in emails | Plain-text emails only. Single-line fields reject control characters. Length limits on all user text. React escapes all rendering. | BR-3, BR-16, BR-21 |
 | Spam and abuse | Rate limits on creating listings and requests, one open request per tool, field limits | SEC-6 |
 | Retry storms against n8n | Bounded backoff with jitter, then a dead letter. One loan's events go out in order. | architecture §7.3 |
@@ -77,7 +80,7 @@ they exist.
 | --- | --- | --- | --- |
 | `CONVEX_TO_N8N_SIGNING_SECRET` | `npm run setup` (32 random bytes) | Convex env, `.env.n8n` → n8n container env | Code, workflow JSON, logs, the Next.js process |
 | `N8N_TO_CONVEX_SIGNING_SECRET` | `npm run setup` | Convex env, `.env.n8n` → n8n container env | Code, workflow JSON, logs, the Next.js process |
-| n8n encryption key | `npm run setup` | `.secrets/n8n_encryption_key`, mounted as `N8N_ENCRYPTION_KEY_FILE` (support verified in block 007, with a recorded fallback) | Env variables (so `$env` can't read it), anywhere else |
+| n8n encryption key | n8n, on first start | n8n's data volume (`~/.n8n/config`) | Env variables (so `$env` can't read it), anywhere else |
 | `CLERK_SECRET_KEY` | Clerk dashboard | `.env.local` | Convex, n8n, logs |
 | SMTP credentials | n8n credential (encrypted with the key above) | n8n database | Workflow JSON |
 
@@ -118,8 +121,8 @@ they exist.
           `environ` inside a word (`os.environ`), `declare` or `typeset`, a bare `set` or
           `export` (followed by nothing but a separator, a quote or a redirection), and
           `export -p`;
-        - one secret: any text containing `SIGNING_SECRET` or `ENCRYPTION_KEY` (which includes
-          `$N8N_ENCRYPTION_KEY_FILE`, the key file's path), and `process.env`;
+        - one secret: any text containing `SIGNING_SECRET` or `ENCRYPTION_KEY`, and
+          `process.env`;
         - n8n's `~/.n8n/config`, which holds the encryption key: a command that mentions both
           `.n8n` and `config`;
       - the same docker words with `cp`: anything that mentions `.n8n`, and the single-secret
@@ -167,8 +170,8 @@ they exist.
     `${x}env`); another language's environment API (Perl's `%ENV`, Ruby's `ENV`); a variable
     whose name contains neither `SIGNING_SECRET` nor `ENCRYPTION_KEY`; a file other than
     `~/.n8n/config`; and n8n's data volume mounted into another container
-    (`docker run -v <volume>:/data … cat /data/config`). The key file's literal mount path and
-    the volume's name are added once `compose.yml` defines them (TD-013).
+    (`docker run -v <volume>:/data … cat /data/config`). The volume's name is added once
+    `compose.yml` defines it (TD-013).
 
   The rule in `CLAUDE.md` is what governs.
 
@@ -179,6 +182,6 @@ they exist.
 | User profile changes in Clerk only sync on the next sign-in (TD-001) | Low impact locally | Clerk webhooks (signed, verified) |
 | Anyone can sign up and then see every listing and display name (TD-007) | A demo needs open sign-up | Invite-only or allowlisted sign-up, or address verification for a neighborhood |
 | A replay of a loan event to n8n inside the 5-minute window re-sends one email (TD-006) | Needs a captured, valid request; the effect is one duplicate email | Event-ID deduplication in n8n after the send, or idempotency keys at the email provider |
-| A duplicate email in the other narrow cases of TD-006: a lost acknowledgement, a timed-out send that completes anyway, or a reminder whose write-back never lands | At-least-once is standard, and the email is harmless | The same as above |
-| Quick-tunnel URLs are public and change on every restart | Only signed webhook paths are exposed; the URL is re-synced automatically | A real domain, TLS, and an IP allowlist or private networking |
-| Host sleep can skew the Docker VM clock beyond ±300 s, so signed calls are rejected | Rejections are counted and visible; the runbook gives the fix | Hosts that use NTP |
+| A duplicate email in the other narrow cases of TD-006: a lost acknowledgement, a timed-out send that completes anyway, a reminder whose write-back never lands, overlapping reminder runs, or an SMTP reply lost after acceptance | At-least-once is standard, and the email is harmless | The same as above |
+| The local Convex backend listens on all interfaces (ports 3210 and 3211) | Development only; every function still checks the caller, and the endpoints check signatures | A cloud deployment, with n8n reached over a private network or a real domain with TLS |
+| Host sleep can skew the Docker VM clock beyond ±300 s, so signed calls are rejected | The rejections show in the logs and as n8n workflow errors; the runbook gives the fix | Hosts that use NTP |

@@ -4,7 +4,7 @@ Items are appended as they are identified. Resolved items are marked in place, n
 Conventions: [.claude/rules/tech-debt-and-bugs.md](../.claude/rules/tech-debt-and-bugs.md).
 
 The first items record trade-offs accepted during planning. They feed the production note
-(block 012).
+(block 008).
 
 ---
 
@@ -36,10 +36,9 @@ The first items record trade-offs accepted during planning. They feed the produc
 - **Module:** AUTO
 - **Description:** n8n has no HMAC credential type, so the signing and verification Code nodes
   read the signing secrets from `$env`. That requires env access in nodes, which lets any workflow
-  editor read the container's environment variables. The n8n encryption key is passed as a file
-  (`N8N_ENCRYPTION_KEY_FILE`), so it is not among them, but both signing secrets are. Production
-  should use an external secrets manager, or move signing and verification into a small proxy in
-  front of n8n.
+  editor read the container's environment variables. n8n's encryption key stays in its data
+  volume, so it is not among them, but both signing secrets are. Production should use an
+  external secrets manager, or move signing and verification into a small proxy in front of n8n.
 - **Priority:** Medium
 - **Blocked by:** —
 
@@ -71,17 +70,19 @@ The first items record trade-offs accepted during planning. They feed the produc
 
 - **Source:** Planning baseline ([ADR-004](adr/ADR-004-hmac-request-signing.md), [ADR-005](adr/ADR-005-delivery-semantics-and-idempotent-write-backs.md)); widened after planning review rounds 1, 2 and 3
 - **Module:** AUTO
-- **Description:** Delivery is at least once. A recipient can get an email twice in four narrow
-  cases:
+- **Description:** Delivery is at least once. A recipient can get an email twice in a few narrow
+  cases (architecture.md §10, as simplified on 2026-11-11):
   - n8n sends a notification, but its acknowledgement never reaches Convex;
   - the execution timeout cancels a notification whose SMTP send then completes anyway, after n8n
     has answered with an error, so Convex retries it;
-  - n8n sends a reminder, but the write-back never lands: n8n crashes, the write-back fails after
-    its retries, or the run stops while a stalled SMTP send is still in progress. The claim is
-    taken over and a later run sends again;
+  - n8n sends a reminder, but the write-back never lands (n8n crashes, or the write-back fails
+    after its retries), so the loan stays due and the next run sends again;
+  - two reminder runs overlap, for example a scripted run during the scheduled one;
+  - an SMTP server accepts a message and drops the connection before replying (RFC 1047), so the
+    sender reports a failure although the email went out (from TD-011);
   - a captured, validly signed loan event is replayed to n8n inside the 5-minute window.
 
-  Duplicate *records* are impossible in all four. Production should pass `eventId` (or the
+  Duplicate *records* are impossible in all of them. Production should pass `eventId` (or the
   reminder key) to the email provider as an idempotency key, or deduplicate inside n8n with a
   check that runs after the send succeeds.
 - **Priority:** Low
@@ -183,6 +184,11 @@ The first items record trade-offs accepted during planning. They feed the produc
   delivery-blocks rule). Mark this item resolved when block 006 ships.
 - **Priority:** High
 - **Blocked by:** Block 006
+- **Status: Resolved (block 002, re-plan).** Superseded rather than patched. The developer replaced
+  the reminder claims with a daily run whose write-backs are keyed by loan and date (ADR-005's
+  2026-11-11 amendment). There are no claims to sweep, take over or mark `missed`. A failed or
+  unsent reminder stays due for the next run. The heartbeat threshold of 26 h now fits the daily
+  run, and `nextReminderOn` and `reclaimed` are gone.
 
 ### TD-011: Reminder checks and duplicate cases to settle in blocks 009 and 010
 
@@ -212,6 +218,11 @@ The first items record trade-offs accepted during planning. They feed the produc
   building. Mark this item resolved when both have shipped.
 - **Priority:** Medium
 - **Blocked by:** Blocks 009, 010
+- **Status: Resolved (block 002, re-plan).** The claim design these checks served is gone
+  (ADR-005's 2026-11-11 amendment). There are no `dev:backdateLastRun` checks of hourly summaries,
+  no interrupted-run takeover to time, no claim leases, and no `smoke:idempotency` claims to clean
+  up. The RFC 1047 duplicate case moved into TD-006. `dev:createOverdueLoan` stays a block 007
+  smoke helper where needed.
 
 ### TD-012: Process gaps around fix blocks, the baseline PR and bug reports
 
@@ -256,8 +267,11 @@ The first items record trade-offs accepted during planning. They feed the produc
   credential exports. Once `compose.yml` fixes the mount path and the volume name, add both to
   `containerLeak` in `.claude/hooks/secret-names.mjs`, with a test row each, and list them in
   security.md §5. The block 007 spec carries this.
-- **Priority:** Medium
+- **Priority:** Low (lowered from Medium by the re-plan)
 - **Blocked by:** Block 007
+- **Update (block 002, re-plan):** n8n now keeps its own encryption key in its data volume
+  (architecture.md §13), so no key file is mounted and the first case is gone. What remains is the
+  data volume's name, which block 007's `compose.yml` fixes.
 
 ### TD-014: The shadcn CLI's dependencies have open advisories
 
@@ -268,6 +282,6 @@ The first items record trade-offs accepted during planning. They feed the produc
   (ReDoS, through `ts-morph`). The only fix npm offers is a downgrade to shadcn 1.0.0. `shadcn` is a
   dev dependency, used by the app only for its build-time `shadcn/tailwind.css`, so
   `npm audit --omit=dev` finds 0 and nothing reaches the app bundle. Upgrade when shadcn ships
-  fixed dependencies, and recheck before the release (block 012).
+  fixed dependencies, and recheck before the release (block 008).
 - **Priority:** Low
 - **Blocked by:** — (upstream)

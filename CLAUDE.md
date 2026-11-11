@@ -32,8 +32,8 @@ Versions current on 2026-11-10. The lockfile is authoritative.
 - **Convex** 1.49: data, business rules, authorization, the outbox, the clock, crons, and the HTTP
   endpoints for n8n. It also uses `convex-helpers` (custom functions) and
   `@convex-dev/rate-limiter`.
-- **n8n** 2.47 in Docker, with **Mailpit** (SMTP catcher), a **Caddy** edge proxy, and a
-  **cloudflared** quick tunnel.
+- **n8n** 2.47 and **Mailpit** (SMTP catcher) in Docker. In development, Convex runs as an
+  anonymous **local deployment** (no account), which n8n reaches through `host.docker.internal`.
 - **Tailwind CSS 4** and **shadcn/ui** (the `base-nova` style on Base UI); **react-hook-form**
   and **zod 4**; **sonner** toasts; **date-fns**.
 - **TypeScript** in strict mode, on 6.0.x until `typescript-eslint` supports 7. Scripts run with
@@ -52,7 +52,7 @@ Used in block titles, tech-debt entries and ADR context.
 | `AUTH` | Identity and roles | `users`, role and trust changes, `auditLog` |
 | `TOOL` | Listings | `tools`, availability, the public list |
 | `LOAN` | Borrowing | `loans`, the loan state machine, expiry |
-| `AUTO` | Automation | `outbox`, `automationEvents`, `workflowRuns`, `integrationStats`, `/n8n/*` endpoints, the n8n workflows |
+| `AUTO` | Automation | `outbox`, `automationEvents`, `workflowRuns`, `/n8n/*` endpoints, the n8n workflows |
 | `WEB` | Web shell and UX | Layout, navigation, shared components, UX states |
 
 ## Working conventions
@@ -101,35 +101,32 @@ src/
   features/         UI by domain: tools/, loans/, admin/, automation/
   components/ui/    shadcn/ui primitives
   lib/              client helpers
-infra/Caddyfile     edge proxy allowlist
 n8n/workflows/      exported, sanitized workflow JSON (stable IDs)
-scripts/            setup, tunnel sync, admin grant, seed, n8n import/export/check, ID check, smoke tests
-docs/               prd, architecture, security, production (block 012), tech-debt,
+scripts/            setup, admin grant, seed, n8n export/check, ID check, smoke tests
+docs/               prd, architecture, security, production (block 008), tech-debt,
                     adr/, blocks/, reviews/, logs/, runbooks/, bugs/
-(gitignored)        .env, .env.local, .env.n8n, .secrets/
+(gitignored)        .env, .env.local, .env.n8n, .secrets/, .convex/ (local Convex data)
 ```
 
 ## Commands
 
 | From block | Command | What it does |
 | --- | --- | --- |
-| 001 | `npm run dev` | Next.js dev server. From 007 it also runs `tunnel:sync` first, through `predev`. |
+| 001 | `npm run dev` | Next.js dev server |
 | 001 | `npm run typecheck` | TypeScript |
 | 001 | `npm run lint` | ESLint (zero warnings) |
 | 001 | `npm run format:check` | Prettier |
 | 001 | `npm test` | Vitest |
 | 001 | `npm run build` | Production build |
 | 001 | `npm run check:ids` | Duplicate identifier check |
-| 002 | `npx convex dev` | Convex dev deployment: codegen and push |
+| 002 | `npx convex dev` | Local Convex deployment: runs the backend, codegen, and pushes on change |
 | 002 | `npm run admin:grant -- <email>` | Make a signed-in user an admin |
 | 003 | `npm run seed [-- --owner <email>]` | Demo data (needs `ALLOW_DEV_FUNCTIONS=true`) |
-| 007 | `npm run setup` | n8n stack, secrets, Convex env, workflow publish, tunnel (idempotent) |
-| 007 | `npm run tunnel:sync` | Point Convex at the current tunnel URL |
+| 007 | `npm run setup` | n8n stack, signing secrets, Convex env, workflow import and publish (idempotent) |
 | 007 | `npm run n8n:export` | Export and sanitize workflows into `n8n/workflows/` |
 | 007 | `npm run check:workflows` | Secrets, pinned data and error-workflow link checks on workflow JSON |
-| 008 | `npm run smoke:notifications` | Signed event in, email in Mailpit; bad signatures rejected |
-| 009 | `npm run smoke:reminders` | Two runs on the same day: one email and one record for the loan |
-| 009 | `npm run smoke:idempotency` | Concurrent signed claims and write-backs against the dev deployment: each loan claimed once, one record, counted once |
+| 007 | `npm run smoke:notifications` | Signed event in, email in Mailpit; bad signatures rejected |
+| 007 | `npm run smoke:reminders` | Two runs on the same day: one email and one record for the loan |
 
 ## Never
 

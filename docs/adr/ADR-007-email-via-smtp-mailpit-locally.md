@@ -51,4 +51,4 @@ credential for a provider's SMTP settings; the workflows are unchanged.
 - The smoke tests in blocks 008 and 009 assert on Mailpit's API (`/api/v1/messages`).
 - Emails are plain text (BR-21), which also removes a class of injection issues.
 - In production, SPF, DKIM and DMARC, bounces and unsubscribe handling move to the provider
-  (block 012 note).
+  (block 008 note).

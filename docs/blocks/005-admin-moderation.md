@@ -55,5 +55,5 @@ ADM-1 – ADM-3, BR-14, BR-17, BR-20 (long-overdue flag), SEC-1, SEC-5 (no email
       (manual check plus the tests above).
 
 ## Known Constraints
-`remindersSent` only starts increasing in block 009. Until then, the long-overdue flag is tested
+`remindersSent` only starts increasing in block 006. Until then, the long-overdue flag is tested
 with seeded values.

@@ -22,7 +22,9 @@ PUB-3, SEC-1 (foundation), BR-16 (display names), BR-18.
 - [security-standards](../../.claude/rules/security-standards.md).
 
 ## Outputs
-- **Convex project:** `convex/` initialized, with `convex/_generated` committed.
+- **Convex project:** `convex/` initialized against an anonymous local deployment
+  ([ADR-001](../adr/ADR-001-local-topology-convex-cloud-n8n-tunnel.md), 2026-11-11 amendment),
+  with `convex/_generated` committed.
 - **Auth config:** `convex/auth.config.ts` (Clerk issuer from `CLERK_JWT_ISSUER_DOMAIN`).
 - **Schema:** `convex/schema.ts` with `users` and `auditLog`.
 - **Libraries:**
@@ -86,9 +88,11 @@ PUB-3, SEC-1 (foundation), BR-16 (display names), BR-18.
 ## Known Constraints
 - Verify Next.js 16 `proxy.ts` together with Clerk 7 `clerkMiddleware`
   ([architecture.md §16](../architecture.md#16-open-verification-items)).
-- Verify which identity claims carry the name and email under the Clerk–Convex integration. If
-  they are missing, customize the Clerk session token claims. Never give Convex the Clerk secret
-  key.
+- Verify Clerk auth on the local Convex deployment, and which identity claims carry the name and
+  email under the Clerk–Convex integration. If they are missing, customize the Clerk session token
+  claims. Never give Convex the Clerk secret key.
+- Verify `ClerkProvider` and the Convex client provider under Cache Components, or turn Cache
+  Components off and record why.
 - Profile changes sync on the next `ensureUser` call. Clerk webhooks are a production item
   (TD-001).
 - If `userQuery` ever runs before the user row exists, it fails with `UNAUTHENTICATED`, and the UI
@@ -98,6 +102,6 @@ PUB-3, SEC-1 (foundation), BR-16 (display names), BR-18.
 1. Create a Clerk application with email sign-in. Turn on its **Convex integration**, and make
    **first and last name required**. Copy `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and
    `CLERK_SECRET_KEY` into `.env.local`.
-2. Run `npx convex dev` once to log in and create the dev deployment.
-3. Set `CLERK_JWT_ISSUER_DOMAIN` in the Convex env. The README's development section gives the
-   exact command.
+2. Give the Clerk **Frontend API URL** for `CLERK_JWT_ISSUER_DOMAIN` (it is public), or set it
+   yourself with the command in the README's development section. No Convex account or login is
+   needed: `npx convex dev` provisions an anonymous local deployment.

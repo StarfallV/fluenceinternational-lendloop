@@ -1,6 +1,6 @@
 # ADR-005 — At-least-once delivery, idempotent write-backs, claimed reminders
 
-**Status:** Accepted (revised 2026-11-10 after planning review rounds 1, 2 and 3)
+**Status:** Accepted (revised 2026-11-10 after planning review rounds 1, 2 and 3; amended 2026-11-11)
 **Date:** 2026-11-10
 **Block:** Planning baseline
 
@@ -142,3 +142,26 @@ four cases are documented.
 - `convex-test` cannot prove concurrent uniqueness, so a smoke test sends concurrent claim calls
   and write-backs to the dev deployment.
 - The residual duplicate-email cases are listed in security.md §6 and TD-006.
+
+## Amendment — 2026-11-11: daily reminders without claims, simpler retries
+
+The developer judged the reminder claims (hourly runs, leases, takeover, `abandoned` and `missed`)
+and the outbox's per-loan ordering more machinery than the brief needs (TD-010 and TD-011 were
+already queued to patch them further). Decided at the start of block 002:
+- **Reminders run once a day.** `/n8n/reminders/due` is read-only: approved loans past their end
+  date, under the 7-reminder cap, with no `sent` record for today. Each result is written back by
+  key, `reminder:<loanId>:<date>`: `sent` is final and counted once, and `failed` never overwrites
+  it. A failed or unsent reminder stays due, so the next run tries again. This reverses the
+  "daily vs. hourly" choice above: an interrupted daily run now delays a reminder by a day
+  instead of being made up within the hour, which is acceptable for a nudge about an overdue
+  tool.
+- **The outbox keeps an attempt number instead of leases.** Each scheduled delivery carries the
+  attempt it was scheduled for, and only that attempt's outcome is recorded. A 10-minute sweep
+  recovers deliveries whose scheduled action was lost. There is no per-loan ordering or
+  supersession: each email states the loan's status in full.
+- **What stays:** the transactional outbox, at-least-once delivery, the positive acknowledgement,
+  n8n answering before Convex gives up, idempotent write-backs, and duplicate records being
+  impossible.
+
+New duplicate-email cases: overlapping reminder runs, and an unsent write-back resent the next
+run instead of being taken over the same day. Both are in TD-006 and security.md §6.
