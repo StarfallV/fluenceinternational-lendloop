@@ -35,3 +35,20 @@ All notable changes to LendLoop are recorded here. The format follows
   - a PreToolUse hook blocks shell commands that name secret files.
 - Planning baseline closed after review round 4 (PASS WITH NOTES). Its notes are recorded as
   TD-009 – TD-012, each aimed at the block that will resolve it.
+- Block 001, project scaffold and tooling:
+  - a Next.js 16 app (App Router, React 19) with the LendLoop landing page shell, styled with
+    Tailwind CSS 4 and shadcn/ui;
+  - TypeScript 6 in strict mode, ESLint with zero warnings, Prettier, and Vitest with a `node`
+    and an edge-runtime `convex` project;
+  - CI on every pushed branch and on pull requests, and a PR template;
+  - `npm run check:ids`, which fails on duplicate TD, ADR or BUG identifiers or block numbers;
+  - a Claude Code secret guard: file deny rules and a PreToolUse hook that blocks shell commands
+    that name secret files or print secrets, with linear-time checks and a size cap;
+  - the Node floor set to the toolchain's range (`^22.13.0 || ^24.0.0 || >=26.0.0`), and `shadcn`
+    as a dev dependency.
+
+### Changed
+
+- The process, by developer decision after block 001's four review rounds: one review per
+  block, fixes for a passing review's notes need no further round, one `v1.0.0` release at
+  submission, and no identifier registry (ADR-009 amendment).

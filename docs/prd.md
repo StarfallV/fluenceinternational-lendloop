@@ -167,7 +167,7 @@ requirements it delivers. When a block closes, its log is linked in the Evidence
 
 | Requirement | Delivered by | Evidence |
 | --- | --- | --- |
-| PUB-1, PUB-3 | 001 (shell), 002 (sign-in) | — |
+| PUB-1, PUB-3 | 001 (shell), 002 (sign-in) | [001](logs/001-completion.md) (shell) |
 | PUB-2 | 003 (public list), 004 (excludes tools on loan) | — |
 | LST-1 – LST-4 | 003, 004 (availability) | — |
 | LST-5 | 003 (view), 004 (availability and pending counts) | — |
@@ -185,6 +185,6 @@ requirements it delivers. When a block closes, its log is linked in the Evidence
 | REL-1 | 006, 009 | — |
 | REL-2 | 006, 007, 008, 009, 010 | — |
 | UX-1 – UX-3 | 003–005, 010, 011 | — |
-| QA-1, QA-2 | 001 (CI), every block (tests) | — |
+| QA-1, QA-2 | 001 (CI), every block (tests) | [001](logs/001-completion.md) (CI, strict TypeScript, lint) |
 | OPS-1 | 007, 012 | — |
 | DEL-1 – DEL-4 | 007 (workflows folder), 008, 009, 012 | — |

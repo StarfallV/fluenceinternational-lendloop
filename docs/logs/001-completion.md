@@ -204,13 +204,34 @@ addressed and item 1 partly. Its notes were fixed in this block, so round 5 revi
 | 2. Three flag patterns still quadratic; the docs claimed every check linear | Fixed (`4604bd0`): grep, rg and findstr flags are tested token by token with anchored patterns. The 64 KiB cluster shapes that took 5–13 s take under 1 ms; the worst input tried takes about 23 ms. Timing rows cover the cluster shapes, and §5, this log and the test comment give the measured bound. |
 | 3. Recursive grep with an argument attached (`-rnC3`) | Fixed (`4604bd0`): the token check covers `-rnA2`, `-rnC3`, `-rn5`, `-rm1` and `rg -uuA2`, plus `-nd recurse` and `--dir recurse`, with false-positive rows for `-A2`, `-nC3`, `-d skip`, `rg -A2` and `rg -nU`. |
 | Found while fixing | `os.environ` inside a container command is blocked; §5's uncovered list adds programs under another name and other languages' environment APIs. |
+| Follow-up to round 3's nit 6 | security.md's status line, lengthened by the round-4 edit, rewrapped again (`8409254`). |
+
+**Closing.** Round 4 is the last review. Its notes are fixed (`4604bd0`, with CI run 42986682511
+green and a fresh-clone run of all seven steps). The developer then simplified the process
+(`854de35`, ADR-009's 2026-11-11 amendment): one review per block, and fixes for a passing
+review's notes need no further round. A fifth round was started and stopped by the developer;
+nothing was recorded from it. The block closes under the new policy. The process change itself is
+the developer's decision rather than a review note, so it is the one commit after the reviewed
+commit that is neither bookkeeping nor a note fix.
 
 ## Notes for the next block
-- **Before block 002, the developer:**
-  - creates a Clerk application with the Convex integration on and first and last names
-    required;
-  - puts its keys in `.env.local`;
-  - logs in when `npx convex dev` first runs.
+- **Re-plan first.** Block 002 starts by re-planning blocks 002–012 into fewer blocks, as the
+  developer decided on 2026-11-11: local Convex instead of a cloud deployment with a tunnel, simple
+  daily reminders, and a leaner health panel.
+- **Local Convex, verified in a scratch project** (Convex 1.49.0, `CONVEX_AGENT_MODE=anonymous`,
+  no account):
+  - the anonymous local deployment serves `127.0.0.1:3210`, with HTTP actions on `:3211`. It
+    listens on all interfaces;
+  - HTTP actions answered from the host, and from a container through `host.docker.internal`;
+  - actions reached a server on the host's `localhost`, which is where n8n's published port
+    will be;
+  - crons, the scheduler, `npx convex env set` and the rate-limiter component all worked;
+  - on Windows, stopping `npx convex dev` left `convex-local-backend` running. Scripts must stop
+    it, or say how;
+  - Clerk auth remains to be checked against the real Clerk app.
+- **Before block 002, the developer** creates a Clerk application with the Convex integration on
+  and first and last names required, puts its keys in `.env.local`, and gives the Frontend API URL
+  for `CLERK_JWT_ISSUER_DOMAIN`. No Convex login is needed.
 - **Cache Components is on.** Check that `ClerkProvider` and the Convex client provider work under
   it; Clerk may need a Suspense boundary or its dynamic mode. Otherwise turn it off in
   `next.config.ts` and record why.

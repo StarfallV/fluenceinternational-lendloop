@@ -1,6 +1,6 @@
 # 001 — Project scaffold and tooling
 
-**Status:** In review
+**Status:** Closed
 **Module:** PLT
 **Branch:** feature/001-project-scaffold-and-tooling
 
@@ -76,23 +76,23 @@ PUB-1 (shell), QA-1. Also resolves TD-009 and TD-012.
 - **README:** "Development" section with prerequisites and the npm scripts.
 
 ## Acceptance Criteria
-- [ ] On a clean clone, these all succeed locally (Windows) and in CI (Ubuntu): `npm ci`,
+- [x] On a clean clone, these all succeed locally (Windows) and in CI (Ubuntu): `npm ci`,
       `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build`.
-- [ ] `/` shows "LendLoop" and "Borrow what you need. Lend what you don't.", and lays out
+- [x] `/` shows "LendLoop" and "Borrow what you need. Lend what you don't.", and lays out
       correctly at 360 px and 1280 px wide (manual check, recorded).
-- [ ] `npm run check:ids` passes on the repo. A Vitest test proves it fails on fixtures with a
+- [x] `npm run check:ids` passes on the repo. A Vitest test proves it fails on fixtures with a
       duplicated TD, ADR or block number.
-- [ ] CI runs on this block's pushed branch and is green.
-- [ ] `strict` is on in `tsconfig.json`; ESLint forbids `any` and passes with zero warnings.
-- [ ] `git ls-files --eol` shows no CRLF line endings in the index.
-- [ ] `package.json` is at version `0.0.0`.
-- [ ] **Secret guard** (Vitest):
+- [x] CI runs on this block's pushed branch and is green.
+- [x] `strict` is on in `tsconfig.json`; ESLint forbids `any` and passes with zero warnings.
+- [x] `git ls-files --eol` shows no CRLF line endings in the index.
+- [x] `package.json` is at version `0.0.0`.
+- [x] **Secret guard** (Vitest):
   - every blocked and allowed case in security.md §5 holds;
   - the entry-point test gets the deny decision for a blocked command, and malformed input fails
     open with a warning.
 
   A live probe from Claude Code is blocked (recorded).
-- [ ] TD-009 and TD-012 are marked resolved in `docs/tech-debt.md`.
+- [x] TD-009 and TD-012 are marked resolved in `docs/tech-debt.md`.
 
 ## Known Constraints
 - TypeScript 7.0 is the latest release, but `typescript-eslint` 8.72 requires `<6.1.0`. Verify,
