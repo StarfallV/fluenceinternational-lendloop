@@ -47,6 +47,7 @@ describe(".claude/settings.json", () => {
     "/.env.test",
     "/.env.n8n",
     "/.secrets/**",
+    "/.convex/**",
   ])("denies reading and editing %s", (path) => {
     const deny = settings.permissions?.deny ?? [];
 

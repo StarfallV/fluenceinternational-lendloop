@@ -82,6 +82,7 @@ they exist.
 | `N8N_TO_CONVEX_SIGNING_SECRET` | `npm run setup` | Convex env, `.env.n8n` → n8n container env | Code, workflow JSON, logs, the Next.js process |
 | n8n encryption key | n8n, on first start | n8n's data volume (`~/.n8n/config`) | Env variables (so `$env` can't read it), anywhere else |
 | `CLERK_SECRET_KEY` | Clerk dashboard | `.env.local` | Convex, n8n, logs |
+| The local Convex deployment's admin key, its env values (the signing secrets above among them) and its data | `npx convex dev`, on first run | `.convex/` (gitignored) | Git, logs |
 | SMTP credentials | n8n credential (encrypted with the key above) | n8n database | Workflow JSON |
 
 **Trade-offs we accept:**
@@ -94,7 +95,7 @@ they exist.
   - **File tools:** deny rules, anchored to the project root, for reading (`Read`, which Claude
     Code also applies to its other file-reading tools) and writing (`Edit`, which also covers
     `Write`). They cover every env file Next.js loads (`.env`, `.env.local`, `.env.<mode>`,
-    `.env.<mode>.local`), plus `.env.n8n` and `.secrets/`.
+    `.env.<mode>.local`), plus `.env.n8n`, `.secrets/` and `.convex/`.
   - **Shell commands:** a PreToolUse hook (`.claude/hooks/guard-secrets.mjs`, with its matching
     logic in `secret-names.mjs`) runs before every Bash, PowerShell and Monitor command. That
     includes commands Claude Code would auto-approve, and subagents' commands. It is registered
@@ -104,8 +105,9 @@ they exist.
       answer well inside its 10 s timeout, because a hook that times out lets the command run;
     - any command that names a secret file, in any path form or letter case: `.env`,
       `.env.<anything>` except the committed `*.example` templates, or anything under
-      `.secrets`. Examples: `cat .env.local`, `diff .env.n8n.example .env.n8n`, `cat .ENV`,
-      `Get-Content -Path .\.secrets\n8n_encryption_key`.
+      `.secrets` or `.convex`. Examples: `cat .env.local`, `diff .env.n8n.example .env.n8n`,
+      `cat .ENV`, `Get-Content -Path .\.secrets\n8n_encryption_key`,
+      `cat .convex/local/default/config.json`.
     - commands that print secrets without naming a file:
       - `docker compose config` (or its alias `convert`) without `--no-env-resolution`, also as
         `docker.exe compose`, `docker-compose` or `docker-compose.exe`;

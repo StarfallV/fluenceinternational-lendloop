@@ -130,7 +130,8 @@ docs/               prd, architecture, security, production (block 008), tech-de
 
 ## Never
 
-- Read `.env`, `.env.local`, `.env.n8n` or `.secrets/`, or print Convex env values.
+- Read `.env`, `.env.local`, `.env.n8n`, `.secrets/` or `.convex/` (the local deployment's admin
+  key, env values and data), or print Convex env values.
   `.claude/settings.json` denies the common ways, and its hook blocks any shell command that names
   those files, but the rule applies everywhere.
 - Import the raw `query`, `mutation` or `action` builders outside `convex/lib/functions.ts`.

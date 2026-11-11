@@ -15,6 +15,9 @@ const blocked = [
   "Get-Content D:\\repo\\.env.n8n",
   "Get-Content -Path .\\.secrets\\n8n_encryption_key",
   "type .\\.env.production.local",
+  "cat .convex/local/default/config.json",
+  "sqlite3 .convex/local/default/convex_local_backend.sqlite3 .dump",
+  "Get-Content .\\.CONVEX\\local\\default\\config.json",
   // Commands that print secrets without naming a secret file.
   "docker compose config",
   "docker-compose -f compose.yml config",
@@ -148,6 +151,9 @@ const allowed = [
   "findstr /i secret notes.txt",
   "pgrep node",
   "npx convex env set APP_TIMEZONE UTC",
+  "npx convex dev --once",
+  "cat convex/schema.ts ./convex/users.ts",
+  "curl -s https://docs.convex.dev/auth/clerk",
   "npm run check:workflows",
   "git add -A && git commit -m 'docs: x'",
 ];
@@ -204,9 +210,8 @@ describe("findSecretAccess", () => {
 
 describe("secretNamesIn", () => {
   it("lists each secret file a command names, but not the templates", () => {
-    expect(secretNamesIn("diff .env.n8n.example .env.n8n && cat .secrets/key")).toEqual([
-      ".env.n8n",
-      ".secrets",
-    ]);
+    expect(
+      secretNamesIn("diff .env.n8n.example .env.n8n && cat .secrets/key .convex/local"),
+    ).toEqual([".env.n8n", ".secrets", ".convex"]);
   });
 });

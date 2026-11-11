@@ -1,10 +1,12 @@
 // Matching logic for the secret guard (guard-secrets.mjs). Pure functions, so they can be tested.
-// Secret files are `.env`, `.env.<anything>` except the committed `*.example` templates, and
-// anything under `.secrets`. The cases are listed in docs/security.md §5.
+// Secret files are `.env`, `.env.<anything>` except the committed `*.example` templates, anything
+// under `.secrets`, and the local Convex deployment's state under `.convex` (its admin key, env
+// values and data). The cases are listed in docs/security.md §5.
 
-// A name starts at a path or word boundary (so `process.env` and `$env:X` don't match) and ends
-// where the name ends (so `.envrc` doesn't). NTFS is case-insensitive, so the match is too.
-const SECRET_NAME = /(?<![\w$.-])\.(?:env(?:\.[\w-]+)*|secrets)(?![\w-])/gi;
+// A name starts at a path or word boundary (so `process.env`, `$env:X` and `docs.convex.dev` don't
+// match) and ends where the name ends (so `.envrc` doesn't). NTFS is case-insensitive, so the
+// match is too.
+const SECRET_NAME = /(?<![\w$.-])\.(?:env(?:\.[\w-]+)*|secrets|convex)(?![\w-])/gi;
 const TEMPLATE = /^\.env(?:\.[\w-]+)*\.example$/i;
 
 // Longer commands are denied unchecked: the hook must decide well inside its 10 s timeout,
