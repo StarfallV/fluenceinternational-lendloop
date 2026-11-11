@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findSecretAccess, secretNamesIn } from "./secret-names.mjs";
+import { findSecretAccess, MAX_COMMAND_LENGTH, secretNamesIn } from "./secret-names.mjs";
 
 // Keep these cases in step with the list in docs/security.md §5.
 const blocked = [
@@ -43,6 +43,21 @@ const blocked = [
   "docker compose exec n8n sh -c 'echo $CONVEX_TO_N8N_SIGNING_SECRET'",
   "docker compose exec n8n sh -c 'cat \"$N8N_ENCRYPTION_KEY_FILE\"'",
   'docker compose exec n8n node -e "console.log(process.env)"',
+  "docker container exec lendloop-n8n-1 env",
+  "docker compose exec n8n sh -c typeset",
+  "docker compose exec n8n sh -c export",
+  "echo env | docker compose exec -T n8n sh",
+  "printf 'printenv\\n' | docker compose exec -T n8n sh",
+  "docker compose exec -T n8n sh <<'X'\nset\nX",
+  "docker compose exec n8n sh -c 'set >&2'",
+  "docker compose exec n8n sh -c 'set 2>&1 | grep KEY'",
+  "docker compose exec n8n sh -c 'export >/tmp/e'",
+  "docker compose exec n8n sh -c 'echo `env`'",
+  "docker compose exec n8n sh -c '\\env'",
+  "docker compose exec n8n \\printenv",
+  "docker compose exec n8n sh -c 'cd ~/.n8n && cat config'",
+  "docker cp lendloop-n8n-1:/home/node/.n8n /tmp/n8n-copy",
+  "n8n export:credentials --all --decrypted",
   "docker inspect lendloop-n8n-1",
   "docker container inspect n8n",
   "docker --context default inspect lendloop-n8n-1",
@@ -65,6 +80,7 @@ const blocked = [
   "Get-ChildItem -Depth 3 -File | Get-Content",
   "findstr /s /i secret *",
   "findstr /si secret *",
+  "findstr -s -i secret *",
   "npx convex env list",
   "node node_modules/convex/bin/main.js env get N8N_TO_CONVEX_SIGNING_SECRET",
 ];
@@ -88,6 +104,10 @@ const allowed = [
   "docker compose exec n8n sh -c 'export N8N_LOG_LEVEL=debug && n8n --version'",
   "docker compose exec n8n n8n import:workflow --input=/home/node/env/x.json",
   "npm run env:names -- n8n",
+  "docker compose exec n8n n8n --version && echo done",
+  "docker compose cp n8n:/tmp/workflows ./n8n/workflows",
+  "docker compose images | grep inspect",
+  "findstr -i secret notes.txt",
   "rg SIGNING_SECRET src",
   "rg --hidden token",
   "rg -U 'multi\\nline' src",
@@ -111,6 +131,42 @@ describe("findSecretAccess", () => {
 
   it.each(allowed)("allows %s", (command) => {
     expect(findSecretAccess(command)).toBeNull();
+  });
+
+  it("denies a command over 64 KiB without checking it", () => {
+    const command = `echo ${"x".repeat(MAX_COMMAND_LENGTH)}`;
+
+    expect(findSecretAccess(command)).toMatch(/too long/);
+  });
+
+  // Inputs of the maximum length that make backtracking patterns slow. The hook times out after
+  // 10 s, and a timed-out hook lets the command run. Every check is linear, about 15 ms here at
+  // worst; quadratic patterns took 500–700 ms on the repeated-word inputs, which this bound
+  // catches.
+  const filler = MAX_COMMAND_LENGTH - 100;
+  it.each([
+    ["minified JSON in a container heredoc", `docker compose exec -T n8n sh <<'X'\n;{"a":[`],
+    [
+      "one unbroken word in a container heredoc",
+      `docker compose exec -T n8n sh <<'X'\n;${"A".repeat(filler)}`,
+    ],
+    ["repeated docker words", "docker ".repeat(filler / 7)],
+    ["repeated docker compose words", "docker compose ".repeat(filler / 15)],
+    ["repeated grep words", "grep ".repeat(filler / 5)],
+    ["repeated git grep words", "git grep ".repeat(filler / 9)],
+    ["repeated rg words", "rg -n ".repeat(filler / 6)],
+    ["repeated -Recurse flags", "-Recurse ".repeat(filler / 9)],
+    ["repeated gci -r words", "gci -r ".repeat(filler / 7)],
+    ["repeated findstr words", "findstr /i ".repeat(filler / 11)],
+    ["one long flag after grep", `grep ${"-a".repeat(filler / 2)}`],
+  ])("decides quickly on %s", (_label, prefix) => {
+    const command = (prefix + '{"k":"v"},'.repeat(filler)).slice(0, MAX_COMMAND_LENGTH);
+
+    const start = performance.now();
+    findSecretAccess(command);
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(250);
   });
 });
 

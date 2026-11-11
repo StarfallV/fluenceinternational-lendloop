@@ -1,9 +1,10 @@
 # LendLoop — Security and Privacy
 
-**Status:** v1.4 (2026-11-11): §5's agent guardrails rewritten in block 001 (TD-009) and widened
-after its review rounds [1](reviews/001-review-1.md) and [2](reviews/001-review-2.md). Baseline v1.3 (2026-11-10, revised after
-planning review [rounds 1](reviews/planning-baseline-review-1.md),
-[2](reviews/planning-baseline-review-2.md) and [3](reviews/planning-baseline-review-3.md)).
+**Status:** v1.4 (2026-11-11): §5's agent guardrails rewritten in block 001 (TD-009) and
+revised after its review rounds [1](reviews/001-review-1.md), [2](reviews/001-review-2.md) and
+[3](reviews/001-review-3.md). Baseline v1.3 (2026-11-10, revised after planning review
+[rounds 1](reviews/planning-baseline-review-1.md), [2](reviews/planning-baseline-review-2.md)
+and [3](reviews/planning-baseline-review-3.md)).
 **Scope:** What we protect, from whom, with which controls, and which personal data goes where.
 The mechanisms are specified in [architecture.md](architecture.md). This document explains why
 they exist.
@@ -95,29 +96,38 @@ they exist.
     logic in `secret-names.mjs`) runs before every Bash, PowerShell and Monitor command. That
     includes commands Claude Code would auto-approve, and subagents' commands. It is registered
     in exec form, so it doesn't depend on a shell. It blocks:
+    - any command over 64 KiB, unchecked: every check is linear (about 15 ms at worst for 64 KiB),
+      but the hook must answer well inside its 10 s timeout, because a hook that times out lets the
+      command run;
     - any command that names a secret file, in any path form or letter case: `.env`,
       `.env.<anything>` except the committed `*.example` templates, or anything under
       `.secrets`. Examples: `cat .env.local`, `diff .env.n8n.example .env.n8n`, `cat .ENV`,
       `Get-Content -Path .\.secrets\n8n_encryption_key`.
     - commands that print secrets without naming a file:
       - `docker compose config` (or its alias `convert`) without `--no-env-resolution`;
-      - commands run in a container with `exec` or `run` (through `docker`, `docker compose`,
-        `docker-compose` or `docker container`, with any options before the subcommand). The
-        rest of the whole command is checked, including every step of an `sh -c` script and any
-        host command chained after it. Blocked there:
-        - the whole environment: `printenv` or `env` (by name or by path, as an argument, an
-          `--entrypoint` or a script step), `/proc/<pid>/environ`, and the shell's listings: a
-          bare `set` or `export`, `export -p`, `declare` and `typeset`;
-        - one secret: any variable whose name contains `SIGNING_SECRET` or `ENCRYPTION_KEY`
-          (which includes `$N8N_ENCRYPTION_KEY_FILE`, the key file's path), and `process.env`;
-        - n8n's `~/.n8n/config`, which holds the encryption key (also with `cp`);
-      - `docker inspect`, with any options before it;
-      - `n8n export:credentials --decrypted`;
+      - commands that run something in a container: `docker`, `docker-compose` or
+        `docker compose` followed, in the same simple command, by `exec` or `run` (options
+        before the subcommand are fine). Then the **whole** command is checked word by word,
+        splitting at whitespace, quotes, `=`, brackets, backticks, backslashes, redirections and
+        separators. So words piped into the container, every step of an `sh -c` script or
+        heredoc, and a host command chained after it all count. Blocked:
+        - the whole environment: a word whose last path segment is `env`, `printenv` or
+          `environ` (`/usr/bin/env`, `--entrypoint=env`, `` `env` ``, `\env`,
+          `/proc/1/environ`), `declare` or `typeset`, a bare `set` or `export` (followed by
+          nothing but a separator, a quote or a redirection), and `export -p`;
+        - one secret: any text containing `SIGNING_SECRET` or `ENCRYPTION_KEY` (which includes
+          `$N8N_ENCRYPTION_KEY_FILE`, the key file's path), and `process.env`;
+        - n8n's `~/.n8n/config`, which holds the encryption key: a command that mentions both
+          `.n8n` and `config`;
+      - `docker cp` of anything that mentions `.n8n`, and the single-secret rules above;
+      - `docker inspect` (any `docker … inspect`);
+      - `n8n export:credentials --decrypted`, on the host or in a container;
       - recursive searches that ignore `.gitignore`: `grep -r` (also `-d recurse`,
         `--directories=recurse`, abbreviated long options, and `rgrep`), `rg -u` in any short-flag
         cluster, `rg --unrestricted`, `rg --no-ignore`, `git grep --no-index` or
         `--no-exclude-standard`, `Get-ChildItem -Recurse` (or `gci -r`, or `-Depth`) piped into
-        `Select-String`, `sls` or `Get-Content`, and `findstr /s` (also combined, as in `/si`);
+        `Select-String`, `sls` or `Get-Content`, and `findstr /s` or `-s` (also combined, as in
+        `/si`);
       - `convex env list` and `convex env get`.
 
     It allows:
@@ -142,10 +152,11 @@ they exist.
     built by another command (`find … -exec cat`, `xargs`);
   - a path assembled at run time, or matched by a wildcard or a search glob (`cat .e*`,
     `rg -g '*'`);
-  - an interactive shell started inside a container, and any other read inside one: a variable
-    whose name doesn't contain `SIGNING_SECRET` or `ENCRYPTION_KEY`, or a file other than
-    `~/.n8n/config`. The key file's literal mount path is added once `compose.yml` defines it
-    (TD-013).
+  - inside a container: an interactive shell; a word assembled from pieces (`e""nv`,
+    `${x}env`); a variable whose name contains neither `SIGNING_SECRET` nor `ENCRYPTION_KEY`; a
+    file other than `~/.n8n/config`; and n8n's data volume mounted into another container
+    (`docker run -v <volume>:/data … cat /data/config`). The key file's literal mount path and
+    the volume's name are added once `compose.yml` defines them (TD-013).
 
   The rule in `CLAUDE.md` is what governs.
 

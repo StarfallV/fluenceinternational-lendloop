@@ -7,98 +7,216 @@
 const SECRET_NAME = /(?<![\w$.-])\.(?:env(?:\.[\w-]+)*|secrets)(?![\w-])/gi;
 const TEMPLATE = /^\.env(?:\.[\w-]+)*\.example$/i;
 
-// Commands that print secrets without naming a secret file. `[^|;&]*` keeps each match inside
-// one command of a pipeline or command list.
-const PS_READER = String.raw`\b(?:Select-String|sls|Get-Content|gc|cat|type)\b`;
+// Longer commands are denied unchecked: the hook must decide well inside its 10 s timeout,
+// because a hook that times out lets the command run.
+export const MAX_COMMAND_LENGTH = 64 * 1024;
 
-// `docker`, `docker-compose`, `docker compose` or `docker container`, with any options before the
-// subcommand (`-f compose.yml`, `-p lendloop`, `--context x`).
-const docker = (subcommands) => String.raw`\bdocker(?:-compose)?\b[^|;&]*?\s(?:${subcommands})\b`;
-// After `docker … exec|run`, the rest of the whole command: the separators inside an `sh -c`
-// script don't end it. A host command chained after it is over-blocked, which is acceptable.
-const REST = String.raw`[\s\S]*?`;
-// Where a command word starts: whitespace, `=` (`--entrypoint=env`), a quote, `$(`, or a
-// separator inside a script.
-const WORD_START = String.raw`[\s='"(;&|]`;
+// --- Commands run in a container ---------------------------------------------------------------
+// Checked word by word, in one linear pass, rather than with backtracking patterns.
+
+// Words end at whitespace, quotes, `=`, brackets, backticks, backslashes, redirections and shell
+// separators, so `--entrypoint=env`, `$(printenv)`, `` `env` `` and `\env` all yield a bare word.
+const WORD_BREAK = /([\s='"(){};&|`\\<>]+)/;
+// What ends a simple command, for tying a subcommand to the `docker` before it.
+const COMMAND_SEPARATOR = /[|;&]/;
+// What may follow a bare `set` or `export`: the end of a command, a quote or a redirection.
+const END_OF_ARGUMENTS = /[\n;&|)`'"<>]/;
+const DOCKER_SUBCOMMANDS = new Set(["exec", "run", "cp", "inspect"]);
+// `env`, `printenv` and `/proc/<pid>/environ` by name or path, and the shell's own listings.
+const ENVIRONMENT_DUMPS = new Set(["env", "printenv", "environ", "declare", "typeset"]);
+
+/** The command's words, lowercased, each with the separator that follows it. */
+function wordsOf(command) {
+  const parts = command.split(WORD_BREAK);
+  const words = [];
+  for (let i = 0; i < parts.length; i += 2) {
+    if (parts[i]) words.push({ word: parts[i].toLowerCase(), after: parts[i + 1] ?? "" });
+  }
+  return words;
+}
+
+/**
+ * The subcommands (`exec`, `run`, `cp`, `inspect`) that `docker`, `docker-compose` or
+ * `docker compose` runs, with any options before the subcommand (`-f compose.yml`,
+ * `-p lendloop`, `--context x`). Walks right to left, keeping the subcommand words seen since the
+ * last separator.
+ */
+function dockerSubcommands(words) {
+  const found = new Set();
+  let pending = new Set();
+  for (let i = words.length - 1; i >= 0; i--) {
+    const { word, after } = words[i];
+    if (COMMAND_SEPARATOR.test(after)) pending = new Set();
+    if (word === "docker" || word === "docker-compose") {
+      for (const subcommand of pending) found.add(subcommand);
+    } else if (DOCKER_SUBCOMMANDS.has(word)) {
+      pending.add(word);
+    }
+  }
+  return found;
+}
+
+/** Whether any word dumps the environment: `env`, `printenv`, a bare `set` or `export`, … */
+function dumpsEnvironment(words) {
+  return words.some(({ word, after }, i) => {
+    const name = word.slice(word.lastIndexOf("/") + 1);
+    if (ENVIRONMENT_DUMPS.has(name)) return true;
+    if (name !== "set" && name !== "export") return false;
+    const next = words[i + 1];
+    // Bare, they list every variable; with an argument they set one, or a shell option.
+    if (!next || END_OF_ARGUMENTS.test(after)) return true;
+    if (name === "export" && next.word === "-p") return true;
+    // `set 2>&1`: a file descriptor before a redirection isn't an argument.
+    return /^\d+$/.test(next.word) && /^[<>]/.test(next.after);
+  });
+}
+
+/**
+ * Why a command that touches a container must not run, or null. Once it runs `docker exec` or
+ * `run`, the whole command is checked, so words piped into the container, the steps of an
+ * `sh -c` script and a host command chained after it all count. The over-blocking is accepted.
+ */
+function containerLeak(command) {
+  const words = wordsOf(command);
+  const subcommands = dockerSubcommands(words);
+  if (subcommands.has("inspect")) {
+    return "`docker inspect` prints a container's environment, which holds secrets";
+  }
+  const runs = subcommands.has("exec") || subcommands.has("run");
+  if (runs && dumpsEnvironment(words)) {
+    return "the command dumps a container's environment, which holds secrets";
+  }
+  if (!runs && !subcommands.has("cp")) return null;
+  // One secret: a signing secret or the encryption key by variable name (`ENCRYPTION_KEY` also
+  // covers `$N8N_ENCRYPTION_KEY_FILE`, the key file's path), `process.env`, and n8n's
+  // ~/.n8n/config, which holds the key (by any path that mentions both, or copied out with
+  // `.n8n` itself).
+  const text = command.toLowerCase();
+  const n8nConfig = text.includes(".n8n") && (text.includes("config") || subcommands.has("cp"));
+  if (
+    text.includes("signing_secret") ||
+    text.includes("encryption_key") ||
+    /\bprocess\.env\b/.test(text) ||
+    n8nConfig
+  ) {
+    return "the command reads a secret inside a container (a signing secret or n8n's encryption key)";
+  }
+  return null;
+}
+
+// --- Other commands that print secrets without naming a secret file ----------------------------
+
+/**
+ * Whether one simple command (the text between `separators`) runs a program with a flag: each
+ * of `programs` is found in turn, after the previous one, and `flag` is tested on what is left.
+ * Only the first match of each is tried (what follows it includes what follows any later one), so
+ * a check is linear in the command's length.
+ */
+function runsWith(command, { programs, flag, separators = /[|;&]/ }) {
+  return command.split(separators).some((segment) => {
+    let rest = segment;
+    for (const program of programs) {
+      const match = program.exec(rest);
+      if (!match) return false;
+      rest = rest.slice(match.index + match[0].length);
+    }
+    return typeof flag === "function" ? flag(rest) : flag.test(rest);
+  });
+}
+
+const PS_READER = /\b(?:Select-String|sls|Get-Content|gc|cat|type)\b/i;
+const PS_LISTING = /\b(?:Get-ChildItem|gci|ls|dir)\b/i;
+// Get-ChildItem's `-Recurse` in any abbreviation (`-r`, `-rec`), or `-Depth`.
+const PS_RECURSION = /\s-(?:r\w*|Depth)\b/i;
+
+/** A PowerShell listing that recurses, piped (in this or a later stage) into a reader. */
+function listsRecursivelyIntoReader(statement) {
+  const stages = statement.split("|");
+  let readerLater = false;
+  for (let i = stages.length - 1; i >= 0; i--) {
+    const listing = PS_LISTING.exec(stages[i]);
+    if (listing) {
+      const rest = stages[i].slice(listing.index + listing[0].length);
+      const recursion = PS_RECURSION.exec(rest);
+      const after = recursion ? rest.slice(recursion.index + recursion[0].length) : "";
+      if (recursion && (readerLater || PS_READER.test(after))) return true;
+    }
+    readerLater ||= PS_READER.test(stages[i]);
+  }
+  return false;
+}
 
 const LEAKY_COMMANDS = [
   {
     // `convert` is Compose v2's alias of `config`.
-    pattern:
-      /\bdocker(?:-compose|\s+compose)\b[^|;&]*\s(?:config|convert)\b(?![^|;&]*--no-env-resolution)/i,
+    test: (command) =>
+      runsWith(command, {
+        programs: [/\bdocker(?:-compose|\s+compose)\b/i, /\s(?:config|convert)\b/i],
+        flag: (rest) => !rest.includes("--no-env-resolution"),
+      }),
     reason: "`docker compose config` prints the resolved env files; add --no-env-resolution",
   },
   {
-    // A container's whole environment: `printenv`, `env` or `/proc/<pid>/environ`, by name or by
-    // path (but not `env:names` or an `env/` directory), or the shell's own listings: a bare
-    // `set` or `export`, `export -p`, `declare` and `typeset`.
-    pattern: new RegExp(
-      docker("exec|run") +
-        REST +
-        String.raw`(?:${WORD_START}(?:\S*\/)?(?:printenv|env|environ)\b(?![:/.-])` +
-        String.raw`|${WORD_START}(?:set|export)\s*(?:-p\b|(?=$|['");&|]))` +
-        String.raw`|\b(?:declare|typeset)\b)`,
-      "i",
-    ),
-    reason: "the command dumps a container's environment, which holds secrets",
-  },
-  {
-    // One secret inside a container: a signing secret or the encryption key by variable name
-    // (`ENCRYPTION_KEY` also covers `$N8N_ENCRYPTION_KEY_FILE`, the key file's path),
-    // `process.env`, and n8n's ~/.n8n/config, which holds the key. A decrypted export prints
-    // every credential.
-    pattern: new RegExp(
-      docker("exec|run|cp") +
-        REST +
-        String.raw`(?:SIGNING_SECRET|ENCRYPTION_KEY|\bprocess\.env\b|\.n8n[\\/]config\b)` +
-        String.raw`|\bexport:credentials\b[^|;&]*--decrypted\b`,
-      "i",
-    ),
-    reason:
-      "the command reads a secret inside a container (a signing secret, n8n's encryption key or its credentials)",
-  },
-  {
-    pattern: new RegExp(docker("inspect"), "i"),
-    reason: "`docker inspect` prints a container's environment, which holds secrets",
+    // On the host or in a container: a decrypted export prints every credential.
+    test: (command) =>
+      runsWith(command, { programs: [/\bexport:credentials\b/i], flag: /--decrypted\b/i }),
+    reason: "`n8n export:credentials --decrypted` prints n8n's credentials",
   },
   {
     // GNU grep ignores .gitignore, so a recursive search reads the secret files. Long options may
     // be abbreviated, and `rgrep` is `grep -r`.
-    pattern:
-      /\brgrep\b|\b[ef]?grep\b[^|;&]*\s(?:-[a-z]*r[a-z]*|--(?:dereference-)?rec\w*|--dir\w*[=\s]+rec\w*|-d\s*rec\w*)(?=\s|$)/i,
+    test: (command) =>
+      /\brgrep\b/i.test(command) ||
+      runsWith(command, {
+        programs: [/\b[ef]?grep\b/i],
+        flag: /\s(?:-[a-z]*r[a-z]*|--(?:dereference-)?rec\w*|--dir\w*[=\s]+rec\w*|-d\s*rec\w*)(?=\s|$)/i,
+      }),
     reason: "a recursive grep reads the gitignored secret files; use the Grep tool",
   },
   {
     // Case-sensitive: any lowercase `u` in a short-flag cluster disables the ignore rules, while
     // `-U` is multiline mode.
-    pattern: /\brg\b[^|;&]*\s(?:-[A-Za-z]*u[A-Za-z]*|--unrestricted|--no-ignore\S*)(?=\s|$)/,
+    test: (command) =>
+      runsWith(command, {
+        programs: [/\brg\b/],
+        flag: /\s(?:-[A-Za-z]*u[A-Za-z]*|--unrestricted|--no-ignore\S*)(?=\s|$)/,
+      }),
     reason: "ripgrep without its ignore rules reads the secret files; use the Grep tool",
   },
   {
     // Without the index, git grep doesn't apply .gitignore.
-    pattern: /\bgit\b[^|;&]*\sgrep\b[^|;&]*\s--no-(?:index|exclude-standard)\b/i,
+    test: (command) =>
+      runsWith(command, {
+        programs: [/\bgit\b/i, /\sgrep\b/i],
+        flag: /\s--no-(?:index|exclude-standard)\b/i,
+      }),
     reason: "git grep outside the index reads the gitignored secret files; use the Grep tool",
   },
   {
-    // `-Recurse` before or after a reader, or Get-ChildItem's abbreviations (`-r`, `-rec`) and
-    // `-Depth` before one.
-    pattern: new RegExp(
-      [
-        String.raw`-Recurse\b[^;]*${PS_READER}`,
-        String.raw`\b(?:Select-String|sls|Get-Content|gc)\b[^;]*-Recurse\b`,
-        String.raw`\b(?:Get-ChildItem|gci|ls|dir)\b[^|;]*\s-(?:r\w*|Depth)\b[^;]*${PS_READER}`,
-      ].join("|"),
-      "i",
-    ),
+    // In one statement (pipes included): `-Recurse` before or after a reader, or a listing that
+    // recurses (`gci -r`, `-Depth`) piped into one.
+    test: (command) =>
+      command.split(";").some(
+        (statement) =>
+          runsWith(statement, { programs: [/-Recurse\b/i], flag: PS_READER, separators: ";" }) ||
+          runsWith(statement, {
+            programs: [/\b(?:Select-String|sls|Get-Content|gc)\b/i],
+            flag: /-Recurse\b/i,
+            separators: ";",
+          }) ||
+          listsRecursivelyIntoReader(statement),
+      ),
     reason: "a recursive PowerShell read reaches the secret files; use the Grep tool",
   },
   {
-    // findstr switches combine (`/si`, `/s/i`).
-    pattern: /\bfindstr\b[^|;&]*\s\/[a-z/]*s[a-z/]*\b/i,
+    // findstr takes `/` or `-` switches, which combine (`/si`, `/s/i`, `-s`).
+    test: (command) =>
+      runsWith(command, { programs: [/\bfindstr\b/i], flag: /\s[/-][a-z/]*s[a-z/]*\b/i }),
     reason: "a recursive findstr reads the secret files; use the Grep tool",
   },
   {
-    pattern: /\bconvex\b[^|;&]*\benv\s+(?:list|get)\b/i,
+    test: (command) =>
+      runsWith(command, { programs: [/\bconvex\b/i], flag: /\benv\s+(?:list|get)\b/i }),
     reason: "`convex env list` and `convex env get` print Convex secrets",
   },
 ];
@@ -118,8 +236,11 @@ export function secretNamesIn(command) {
  * @returns {string | null}
  */
 export function findSecretAccess(command) {
+  if (command.length > MAX_COMMAND_LENGTH) {
+    return "the command is too long for the secret guard to check (over 64 KiB); put the data in a file";
+  }
   const names = [...new Set(secretNamesIn(command))];
   if (names.length > 0) return `the command names a secret file (${names.join(", ")})`;
-  const leak = LEAKY_COMMANDS.find(({ pattern }) => pattern.test(command));
-  return leak ? leak.reason : null;
+  const leak = LEAKY_COMMANDS.find(({ test }) => test(command));
+  return leak ? leak.reason : containerLeak(command);
 }

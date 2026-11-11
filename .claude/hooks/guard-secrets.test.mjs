@@ -60,6 +60,19 @@ describe("guard-secrets hook", () => {
     expect(run.stderr).toContain("no command field");
   });
 
+  it("denies a 1 MB command well within the hook's timeout", () => {
+    const command = `docker compose exec -T n8n sh <<'X'\n${'{"k":"v"},'.repeat(100_000)}\nX`;
+
+    const start = performance.now();
+    const run = runHook(toolCall("Bash", command));
+    const elapsed = performance.now() - start;
+
+    expect(JSON.parse(run.stdout).hookSpecificOutput.permissionDecisionReason).toContain(
+      "too long",
+    );
+    expect(elapsed).toBeLessThan(5000);
+  });
+
   it("denies every command when its matcher fails to load", () => {
     const dir = mkdtempSync(join(tmpdir(), "guard-secrets-"));
     try {

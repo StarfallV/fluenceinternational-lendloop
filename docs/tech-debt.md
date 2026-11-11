@@ -148,9 +148,9 @@ The first items record trade-offs accepted during planning. They feed the produc
     runs. The hook is registered in exec form for Bash, PowerShell and Monitor.
   - **Matching:** names match case-insensitively, and the leaky command shapes are blocked.
   - **File rules:** anchored with `/`, and they cover every env file Next.js loads.
-  - **Tests:** 45 command cases at first, 93 after block 001's review rounds 1 and 2, plus
-    entry-point tests and a test of the registration in `settings.json`. Live probes were
-    blocked, Monitor's included.
+  - **Tests:** 45 command cases at first, 113 after block 001's review rounds 1 to 3 (77 blocked,
+    36 allowed), plus timing tests, entry-point tests and a test of the registration in
+    `settings.json`. Live probes were blocked, Monitor's included.
   - **Docs:** security.md §5 lists the coverage, and block 007's spec has the names-only helper.
 
 ### TD-010: Reminder claim gaps to close in block 006
@@ -240,17 +240,22 @@ The first items record trade-offs accepted during planning. They feed the produc
 
 ### TD-013: The secret guard doesn't know the n8n key file's path inside the container
 
-- **Source:** Block 001 (review rounds [1](reviews/001-review-1.md), issue 2, and
-  [2](reviews/001-review-2.md), issue 2)
+- **Source:** Block 001 (review rounds [1](reviews/001-review-1.md), [2](reviews/001-review-2.md)
+  and [3](reviews/001-review-3.md), issue 2 in each)
 - **Module:** PLT
 - **Description:** Block 007 mounts `.secrets/n8n_encryption_key` into the n8n container and
-  points `N8N_ENCRYPTION_KEY_FILE` at it. Inside the container the path has no `.secrets` in it,
-  so the name match misses `docker compose exec n8n cat <mount path>`. The guard already blocks
-  reads of `~/.n8n/config` (which holds the same key), reads through `$N8N_ENCRYPTION_KEY_FILE`
-  (any `ENCRYPTION_KEY` variable), and decrypted credential exports. Once `compose.yml` fixes the
-  mount path, add it to the `exec|run|cp` rule in `.claude/hooks/secret-names.mjs`, which already
-  allows options before the subcommand and checks the rest of the command, with a test row, and
-  list it in security.md §5. The block 007 spec carries this.
+  points `N8N_ENCRYPTION_KEY_FILE` at it, and gives n8n a named data volume. The guard can't name
+  either before `compose.yml` exists:
+  - inside the container, the key file's path has no `.secrets` in it, so the name match misses
+    `docker compose exec n8n cat <mount path>`;
+  - the data volume, mounted into another container, exposes `config` under another path
+    (`docker run --rm -v <volume>:/data alpine cat /data/config`).
+
+  The guard already blocks reads of `~/.n8n/config` (which holds the same key), reads through
+  `$N8N_ENCRYPTION_KEY_FILE` (any `ENCRYPTION_KEY` text), `docker cp` of `.n8n`, and decrypted
+  credential exports. Once `compose.yml` fixes the mount path and the volume name, add both to
+  `containerLeak` in `.claude/hooks/secret-names.mjs`, with a test row each, and list them in
+  security.md §5. The block 007 spec carries this.
 - **Priority:** Medium
 - **Blocked by:** Block 007
 

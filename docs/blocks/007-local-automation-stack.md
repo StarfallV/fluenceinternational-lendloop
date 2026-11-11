@@ -78,8 +78,9 @@ OPS-1, SEC-4, DEL-2 (folder and tooling), REL-2 (n8n execution retention, public
   of a running service's environment variables. The secret guard blocks `printenv` through
   `docker compose exec` (security.md §5), so this is how the container check below is done.
 - **Secret guard (TD-013):** once `compose.yml` fixes the in-container path of the mounted key
-  file, the `exec|run|cp` rule in `.claude/hooks/secret-names.mjs` also blocks commands that name
-  it, with a test row, and security.md §5 lists it.
+  file and the name of n8n's data volume, `containerLeak` in `.claude/hooks/secret-names.mjs`
+  also blocks container commands that name either, with a test row each, and security.md §5
+  lists them.
 - **Runbook:** `docs/runbooks/local-setup.md` covers:
   - prerequisites, the Clerk and Convex steps, setup, and verification;
   - testing with two browser profiles;
