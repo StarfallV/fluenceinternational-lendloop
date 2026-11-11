@@ -89,10 +89,13 @@ convex/
   model/                  business logic as plain TypeScript, called by the thin functions below
     users.ts tools.ts loans.ts availability.ts automation.ts audit.ts clock.ts
   users.ts tools.ts loans.ts admin.ts automation.ts config.ts clock.ts dev.ts   registered functions (thin)
-  *.test.ts               convex-test suites; helpers in convex/test/
+  *.test.ts               convex-test suites; helpers in convex/test/, named *.helpers.ts
+                          (Convex deploys every .ts file under convex/ whose name has one dot)
 src/
-  app/                    (public) landing · (app) tools, listings, requests, incoming, admin
-  features/               UI by domain: tools/, loans/, admin/, automation/
+  proxy.ts                clerkMiddleware: sends signed-out visitors of app routes to sign-in (UX only)
+  app/                    (public) landing, sign-in · (app) tools, listings, requests, incoming, admin
+  features/               UI by domain: shell/ (providers, app shell, ensureUser), tools/, loans/,
+                          admin/, automation/
   components/ui/          shadcn/ui primitives
   lib/                    client helpers (Convex error → message, date formatting)
 n8n/workflows/            exported, sanitized workflow JSON (stable IDs)
@@ -599,10 +602,10 @@ because they contain email addresses ([security.md §4](security.md#4-data-minim
 
 | Variable | Lives in | Purpose | Secret |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT` | `.env.local` (written by `npx convex dev`) | Convex client and the local deployment | no |
+| `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_SITE_URL` | `.env.local` (written by `npx convex dev`) | Convex client and the local deployment. The app doesn't read the site URL. | no |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `.env.local` | Clerk frontend | no |
 | `CLERK_SECRET_KEY` | `.env.local` | Clerk server side (`proxy.ts`) | **yes** |
-| `CLERK_JWT_ISSUER_DOMAIN` | Convex env | Clerk JWT issuer for `auth.config.ts` | no |
+| `CLERK_JWT_ISSUER_DOMAIN` | Convex env | Clerk JWT issuer (the Frontend API URL) for `auth.config.ts`, which reads `process.env` directly: Convex evaluates that file on its own. Convex refuses to deploy while it is unset. | no |
 | `APP_URL` | Convex env | Links in emails | no |
 | `APP_TIMEZONE` | Convex env, and `.env.n8n` (where setup also sets `GENERIC_TIMEZONE` and `TZ` to the same value) | Calendar "today", and n8n's schedule timezone | no |
 | `N8N_LOAN_EVENTS_URL` | Convex env (setup sets `http://localhost:5678/webhook/lendloop/loan-events`) | Webhook URL | no |
@@ -655,7 +658,9 @@ flowchart LR
 - **Ports:** the Convex backend listens on all interfaces (3210, 3211). On a shared network, the
   host firewall should block them (security.md §6). n8n and Mailpit publish on `127.0.0.1` only.
 - **Stopping:** on Windows, stopping `npx convex dev` can leave `convex-local-backend` running.
-  The runbook says how to stop it.
+  The README says how to stop it.
+- **State:** the local deployment keeps its admin key, its env values and its data in `.convex/`
+  (gitignored; a secret location, security.md §5).
 
 ## 15. Testing strategy
 
@@ -681,7 +686,7 @@ its completion log.
 | Local Convex: an anonymous deployment without an account; HTTP actions, crons, the scheduler, env vars and components; an n8n container reaching it, and it reaching the host's `localhost` | 001 (settled by a spike, 2026-11-11) |
 | Next.js 16 `proxy.ts` (renamed middleware) with Clerk 7's `clerkMiddleware` | 002 |
 | Clerk ↔ Convex on a local deployment (dashboard integration, `auth.config.ts` format), which claims carry the name and email, and the fallback if they don't (customize the session token claims; never give Convex the Clerk secret key) | 002 |
-| `ClerkProvider` and the Convex client provider under Cache Components (or turn Cache Components off, recorded) | 002 |
+| `ClerkProvider` and the Convex client provider under Cache Components (or turn Cache Components off, recorded) | 002 (settled) |
 | Convex runtime support for `Intl.DateTimeFormat` with `timeZone` | 004 |
 | `convex-test`: how components (rate limiter) are registered, and how HTTP actions are called | 003, 006 |
 | Web Crypto HMAC in Convex actions and HTTP actions | 006 |
