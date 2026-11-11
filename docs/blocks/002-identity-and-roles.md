@@ -1,6 +1,6 @@
 # 002 — Identity and roles
 
-**Status:** Planned
+**Status:** In progress
 **Module:** AUTH
 **Branch:** feature/002-identity-and-roles
 
