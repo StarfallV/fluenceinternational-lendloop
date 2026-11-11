@@ -13,6 +13,9 @@ import type * as lib_env from "../lib/env.js";
 import type * as lib_errors from "../lib/errors.js";
 import type * as lib_functions from "../lib/functions.js";
 import type * as lib_validators from "../lib/validators.js";
+import type * as model_audit from "../model/audit.js";
+import type * as model_users from "../model/users.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +29,9 @@ declare const fullApi: ApiFromModules<{
   "lib/errors": typeof lib_errors;
   "lib/functions": typeof lib_functions;
   "lib/validators": typeof lib_validators;
+  "model/audit": typeof model_audit;
+  "model/users": typeof model_users;
+  users: typeof users;
 }>;
 
 /**
